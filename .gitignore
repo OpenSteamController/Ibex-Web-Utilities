@@ -4,3 +4,7 @@ dist
 web/dist
 hardwareupdater.cfg
 hardwareupdater.py
+
+# tsc output alongside sources
+src/**/*.js
+web/src/**/*.js
