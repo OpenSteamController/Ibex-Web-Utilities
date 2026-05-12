@@ -217,19 +217,30 @@ export function App() {
   }, [refreshDevicesAndRewatch]);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Valve Firmware Updater</h1>
-        <div className="flex items-center gap-2">
-          <ConnectButton onClick={handleConnect} loading={loading} />
-          <button
-            onClick={handleConnectBootloader}
-            disabled={loading}
-            className="px-4 py-2 bg-amber-700 hover:bg-amber-600 disabled:bg-amber-900 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-colors"
-          >
-            Connect Bootloader
-          </button>
+    <div className="min-h-screen bg-surface text-gray-100">
+      <header className="relative bg-valve-darker px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <svg className="w-7 h-7 text-valve-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+              <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <h1 className="text-lg font-semibold tracking-tight">
+              <span className="text-valve-blue">Ibex</span>
+              <span className="text-gray-300 ml-1.5">Web Utilities</span>
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <ConnectButton onClick={handleConnect} loading={loading} />
+            <ConnectButton
+              onClick={handleConnectBootloader}
+              loading={loading}
+              variant="bootloader"
+            />
+          </div>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-valve-blue/30 to-transparent" />
       </header>
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}

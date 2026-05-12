@@ -31,7 +31,7 @@ export function TimestampValue({ ts }: { ts: number }) {
     };
   }, [pinned]);
 
-  if (ts === 0) return <dd className="font-mono">Unknown</dd>;
+  if (ts === 0) return <dd className="font-mono text-gray-500">Unknown</dd>;
 
   return (
     <dd
@@ -41,9 +41,12 @@ export function TimestampValue({ ts }: { ts: number }) {
       onMouseLeave={() => setPinned(false)}
     >
       {hex}
-      <span className={`pointer-events-none absolute right-0 bottom-full mb-1 bg-gray-800 text-gray-200 text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap ${
-        pinned ? "block" : "hidden group-hover:block"
-      }`}>
+      <span
+        className={`pointer-events-none absolute right-0 bottom-full mb-1 bg-surface-overlay border border-border-subtle text-gray-200 text-xs px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap ${
+          pinned ? "block" : "hidden group-hover:block"
+        }`}
+        style={{ animation: "fade-in 0.15s ease-out" }}
+      >
         {full}
       </span>
     </dd>

@@ -1,0 +1,33 @@
+.button
+  display: inline-flex
+  align-items: center
+  gap: 0.5rem
+  padding: 0.5rem 1rem
+  border-radius: 0.5rem
+  font-size: 0.875rem
+  font-weight: 500
+  transition: all 0.15s ease
+  cursor: pointer
+  border: 1px solid transparent
+
+  &.device
+    background: rgba(26, 159, 255, 0.12)
+    color: #1a9fff
+    border-color: rgba(26, 159, 255, 0.25)
+
+    &:hover:not(:disabled)
+      background: rgba(26, 159, 255, 0.22)
+      border-color: rgba(26, 159, 255, 0.4)
+
+  &.bootloader
+    background: rgba(245, 158, 11, 0.12)
+    color: #f59e0b
+    border-color: rgba(245, 158, 11, 0.25)
+
+    &:hover:not(:disabled)
+      background: rgba(245, 158, 11, 0.22)
+      border-color: rgba(245, 158, 11, 0.4)
+
+  &:disabled
+    opacity: 0.5
+    cursor: not-allowed

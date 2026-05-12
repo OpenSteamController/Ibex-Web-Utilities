@@ -9,6 +9,8 @@ import {
   watchInputReports,
 } from "@lib/index.js";
 import type { DebugEntry } from "@lib/index.js";
+import { ChevronUpIcon, CopyIcon, CheckIcon } from "./Icons";
+import styles from "./DebugPanel.module.sass";
 
 function formatData(data: unknown): string {
   if (data === undefined) return "";
@@ -31,8 +33,6 @@ function loadPersistedDebug(): boolean {
   }
 }
 
-// Enable debug immediately on load if persisted, so early log entries
-// (like device discovery on mount) are captured.
 if (loadPersistedDebug()) {
   enableDebug();
 }
@@ -90,7 +90,6 @@ export function DebugPanel() {
     }
   };
 
-  // Clean up watcher on unmount
   useEffect(() => {
     return () => { stopWatchRef.current?.(); };
   }, []);
@@ -109,74 +108,74 @@ export function DebugPanel() {
   };
 
   return (
-    <div className="border-t border-gray-800">
-      <div className="px-6 py-2 flex items-center gap-3">
+    <div className={styles.panel}>
+      <div className={styles.toolbar}>
         <button
           onClick={toggle}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-            active
-              ? "bg-yellow-700 text-yellow-100"
-              : "bg-gray-800 text-gray-400 hover:text-gray-200"
-          }`}
+          className={`${styles.toggleButton} ${active ? styles.active : styles.inactive}`}
         >
-          {active ? "Debug ON" : "Debug OFF"}
+          <ChevronUpIcon className={`${styles.chevron} ${active ? styles.open : ""}`} />
+          Debug Console
         </button>
         {active && (
-          <button
-            onClick={handleClear}
-            className="px-3 py-1 rounded text-xs bg-gray-800 text-gray-400 hover:text-gray-200"
-          >
+          <button onClick={handleClear} className={styles.actionButton}>
             Clear
           </button>
         )}
         {active && (
           <button
             onClick={toggleWatch}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-              watching
-                ? "bg-green-700 text-green-100"
-                : "bg-gray-800 text-gray-400 hover:text-gray-200"
-            }`}
+            className={`${styles.actionButton} ${watching ? styles.watching : ""}`}
           >
             {watching ? "Watching Reports" : "Watch Reports"}
           </button>
         )}
         {active && entries.length > 0 && (
-          <button
-            onClick={handleCopy}
-            className="px-3 py-1 rounded text-xs bg-gray-800 text-gray-400 hover:text-gray-200"
-          >
-            {copied ? "Copied!" : "Copy"}
+          <button onClick={handleCopy} className={`${styles.actionButton} flex items-center gap-1.5`}>
+            {copied ? (
+              <>
+                <CheckIcon className="w-3 h-3" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <CopyIcon className="w-3 h-3" />
+                Copy
+              </>
+            )}
           </button>
         )}
         {active && (
-          <span className="text-xs text-gray-500">{entries.length} entries</span>
+          <span className="text-xs text-gray-600">{entries.length} entries</span>
         )}
       </div>
-      {active && (
-        <div className="px-6 pb-4 max-h-80 overflow-y-auto font-mono text-xs">
+      <div className={`${styles.drawer} ${active ? styles.open : styles.closed}`}>
+        <div className={styles.logContainer}>
           {entries.length === 0 ? (
             <p className="text-gray-600">
               Debug logging active. Connect a device to see output.
             </p>
           ) : (
-            entries.map((entry, i) => (
-              <div key={i} className="py-0.5 border-b border-gray-900">
-                <span className="text-gray-600 mr-2">
-                  {(entry.timestamp / 1000).toFixed(3)}s
-                </span>
-                <span className="text-gray-300">{entry.message}</span>
-                {entry.data !== undefined && (
-                  <pre className="text-gray-500 ml-6 whitespace-pre-wrap">
-                    {formatData(entry.data)}
-                  </pre>
-                )}
-              </div>
-            ))
+            entries.map((entry, i) => {
+              const isError = entry.data instanceof Error;
+              return (
+                <div key={i} className={`${styles.logEntry} ${isError ? styles.error : ""}`}>
+                  <span className={styles.timestamp}>
+                    {(entry.timestamp / 1000).toFixed(3)}s
+                  </span>
+                  <span className={styles.message}>{entry.message}</span>
+                  {entry.data !== undefined && (
+                    <pre className={styles.data}>
+                      {formatData(entry.data)}
+                    </pre>
+                  )}
+                </div>
+              );
+            })
           )}
           <div ref={logEndRef} />
         </div>
-      )}
+      </div>
     </div>
   );
 }

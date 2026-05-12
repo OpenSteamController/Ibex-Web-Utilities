@@ -54,14 +54,14 @@ export function ExtraAttributes({ attrs, exclude }: ExtraAttributesProps) {
   }
 
   return (
-    <table className="w-full mt-3 text-xs">
+    <table className="w-full mt-3 text-xs" style={{ animation: "fade-in 0.2s ease-out" }}>
       <tbody>
-        {entries.map(([key, val]) => (
-          <tr key={key} className="border-t border-gray-800/50">
+        {entries.map(([key, val], i) => (
+          <tr key={key} className={`border-t border-border-subtle/50 ${i % 2 === 0 ? "bg-surface-overlay/30" : ""}`}>
             <td className="py-1.5 text-gray-400 pr-4">
               {ATTR_LABELS[key] ?? key}
             </td>
-            <td className="py-1.5 font-mono text-right" title={formatTitle(key, val)}>
+            <td className="py-1.5 font-mono text-right text-gray-200" title={formatTitle(key, val)}>
               {formatValue(key, val)}
             </td>
           </tr>

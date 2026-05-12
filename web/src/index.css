@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+@theme {
+  --color-valve-blue: #1a9fff;
+  --color-valve-blue-dim: #0d7fd4;
+  --color-valve-dark: #1b2838;
+  --color-valve-darker: #0e1a27;
+  --color-surface: #171a21;
+  --color-surface-raised: #1e2329;
+  --color-surface-overlay: #252930;
+  --color-border-subtle: #2a3040;
+  --color-border-accent: #3a4050;
+  --color-accent-controller: #a78bfa;
+  --color-accent-puck: #2dd4bf;
+  --color-accent-bootloader: #f59e0b;
+  --color-accent-wireless: #c084fc;
+}

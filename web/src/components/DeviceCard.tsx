@@ -4,18 +4,32 @@ import type { ConnectedController, DeviceAttributes } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
 import { ExtraAttributes } from "./DeviceAttributes";
 import { TimestampValue } from "./TimestampValue";
-
-interface DeviceCardProps {
-  device: ConnectedDevice;
-}
+import {
+  ControllerIcon,
+  PuckIcon,
+  HashIcon,
+  FirmwareIcon,
+  ChevronRightIcon,
+  RebootIcon,
+  SpinnerIcon,
+  WirelessIcon,
+} from "./Icons";
+import styles from "./DeviceCard.module.sass";
 
 function ControllerChild({ controller }: { controller: ConnectedController }) {
   return (
-    <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
-      <h3 className="text-sm font-medium text-purple-300 mb-2">
-        Steam Controller (Wireless) — Slot {controller.slot}
-      </h3>
-      <dl className="space-y-1 text-xs">
+    <div className={styles.wirelessChild}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className={styles.wirelessDot}>
+          <span className={styles.ping} />
+          <span className={styles.dot} />
+        </span>
+        <WirelessIcon className="w-3.5 h-3.5 text-accent-wireless" />
+        <h3 className="text-sm font-medium text-accent-wireless">
+          Steam Controller — Slot {controller.slot}
+        </h3>
+      </div>
+      <dl className={`${styles.infoList} text-xs`}>
         <div className="flex justify-between">
           <dt className="text-gray-400">Serial</dt>
           <dd className="font-mono">{controller.serialNumber}</dd>
@@ -51,7 +65,6 @@ function ControllerChild({ controller }: { controller: ConnectedController }) {
   );
 }
 
-/** Keys shown directly on the card — excluded from the expanded attributes */
 const PROMOTED_KEYS = new Set([
   "buildTimestamp",
   "bootBuildTimestamp",
@@ -60,6 +73,10 @@ const PROMOTED_KEYS = new Set([
   "capabilities",
 ]);
 
+interface DeviceCardProps {
+  device: ConnectedDevice;
+}
+
 export function DeviceCard({ device }: DeviceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [rebooting, setRebooting] = useState(false);
@@ -67,6 +84,7 @@ export function DeviceCard({ device }: DeviceCardProps) {
   const { info, attrs, connectedControllers } = device;
 
   const isPuck = info.deviceClass === DeviceClass.Proteus;
+  const variant = isPuck ? "puck" : "controller";
 
   const handleRebootToBootloader = async () => {
     setRebootError(null);
@@ -74,9 +92,9 @@ export function DeviceCard({ device }: DeviceCardProps) {
     try {
       const deviceClass = getDeviceClass(info.type);
       await rebootToBootloader(deviceClass, device.hid);
+      // Stay in "Rebooting..." state — the card unmounts when the device disconnects.
     } catch (e) {
       setRebootError(e instanceof Error ? e.message : String(e));
-    } finally {
       setRebooting(false);
     }
   };
@@ -86,87 +104,118 @@ export function DeviceCard({ device }: DeviceCardProps) {
   );
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold">
-          {DeviceTypeNames[info.type]}
-        </h2>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${
-          isPuck ? "bg-teal-800 text-teal-200" : "bg-purple-800 text-purple-200"
-        }`}>
-          {isPuck ? "Puck" : "Controller"}
-        </span>
-      </div>
+    <div className={styles.card}>
+      <div className={`${styles.accentBar} ${styles[variant]}`} />
+      <div className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className={`${styles.iconCircle} ${styles[variant]}`}>
+            {isPuck ? <PuckIcon className="w-5 h-5" /> : <ControllerIcon className="w-5 h-5" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold text-gray-100 truncate">
+              {DeviceTypeNames[info.type]}
+            </h2>
+            <p className="text-xs text-gray-500 font-mono">{info.serialNumber}</p>
+          </div>
+          <span className={`${styles.badge} ${styles[variant]}`}>
+            {isPuck ? "Puck" : "Controller"}
+          </span>
+        </div>
 
-      <dl className="space-y-2 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-gray-400">Serial</dt>
-          <dd className="font-mono">{info.serialNumber}</dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-gray-400">Hardware ID</dt>
-          <dd className="font-mono">0x{info.hardwareId.toString(16).toUpperCase()}</dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-gray-400">Firmware Version</dt>
-          <TimestampValue ts={info.buildTimestamp} />
-        </div>
-        {attrs?.bootBuildTimestamp != null && (
-          <div className="flex justify-between">
-            <dt className="text-gray-400">Bootloader Version</dt>
-            <TimestampValue ts={attrs.bootBuildTimestamp} />
+        <dl className={`${styles.infoList} text-sm`}>
+          <div className="flex items-center justify-between">
+            <dt className="flex items-center gap-2 text-gray-400">
+              <HashIcon className="w-3.5 h-3.5" />
+              Hardware ID
+            </dt>
+            <dd className="font-mono text-gray-200">0x{info.hardwareId.toString(16).toUpperCase()}</dd>
           </div>
-        )}
-        {attrs?.productId != null && (
-          <div className="flex justify-between">
-            <dt className="text-gray-400">Product ID</dt>
-            <dd className="font-mono">0x{attrs.productId.toString(16).toUpperCase()}</dd>
+          <div className="flex items-center justify-between">
+            <dt className="flex items-center gap-2 text-gray-400">
+              <FirmwareIcon className="w-3.5 h-3.5" />
+              Firmware
+            </dt>
+            <TimestampValue ts={info.buildTimestamp} />
           </div>
-        )}
-        {attrs?.capabilities != null && (
-          <div className="flex justify-between">
-            <dt className="text-gray-400">Capabilities</dt>
-            <dd className="font-mono">0x{attrs.capabilities.toString(16).toUpperCase()}</dd>
-          </div>
-        )}
-      </dl>
+          {attrs?.bootBuildTimestamp != null && (
+            <div className="flex items-center justify-between">
+              <dt className="flex items-center gap-2 text-gray-400">
+                <FirmwareIcon className="w-3.5 h-3.5" />
+                Bootloader
+              </dt>
+              <TimestampValue ts={attrs.bootBuildTimestamp} />
+            </div>
+          )}
+          {attrs?.productId != null && (
+            <div className="flex items-center justify-between">
+              <dt className="flex items-center gap-2 text-gray-400">
+                <HashIcon className="w-3.5 h-3.5" />
+                Product ID
+              </dt>
+              <dd className="font-mono text-gray-200">0x{attrs.productId.toString(16).toUpperCase()}</dd>
+            </div>
+          )}
+          {attrs?.capabilities != null && (
+            <div className="flex items-center justify-between">
+              <dt className="flex items-center gap-2 text-gray-400">
+                <HashIcon className="w-3.5 h-3.5" />
+                Capabilities
+              </dt>
+              <dd className="font-mono text-gray-200">0x{attrs.capabilities.toString(16).toUpperCase()}</dd>
+            </div>
+          )}
+        </dl>
 
-      {hasExtras && (
-        <div className="mt-4 border-t border-gray-800 pt-3">
+        {hasExtras && (
+          <div className="mt-4 border-t border-border-subtle pt-3">
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className={styles.expandToggle}
+            >
+              <ChevronRightIcon className={`${styles.chevron} ${expanded ? styles.open : ""}`} />
+              {expanded ? "Hide" : "Show"} all attributes
+            </button>
+            <div className={`${styles.expandContent} ${expanded ? styles.open : styles.closed}`}>
+              <ExtraAttributes attrs={attrs!} exclude={PROMOTED_KEYS} />
+            </div>
+          </div>
+        )}
+
+        {isPuck && connectedControllers.length > 0 && (
+          <div className="mt-4 border-t border-border-subtle pt-3">
+            <p className="text-xs text-gray-400 mb-2">
+              Connected controllers ({connectedControllers.length})
+            </p>
+            <div className="space-y-2">
+              {connectedControllers.map((c) => (
+                <ControllerChild key={c.serialNumber} controller={c} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 border-t border-border-subtle pt-3">
+          {rebootError && (
+            <p className="text-xs text-red-400 mb-2">{rebootError}</p>
+          )}
           <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+            onClick={handleRebootToBootloader}
+            disabled={rebooting}
+            className={styles.rebootButton}
           >
-            {expanded ? "Hide" : "Show"} all attributes
+            {rebooting ? (
+              <>
+                <SpinnerIcon className="h-3.5 w-3.5" />
+                Rebooting...
+              </>
+            ) : (
+              <>
+                <RebootIcon className="w-3.5 h-3.5" />
+                Reboot to Bootloader
+              </>
+            )}
           </button>
-          {expanded && <ExtraAttributes attrs={attrs!} exclude={PROMOTED_KEYS} />}
         </div>
-      )}
-
-      {isPuck && connectedControllers.length > 0 && (
-        <div className="mt-4 border-t border-gray-800 pt-3">
-          <p className="text-xs text-gray-400 mb-2">
-            Connected controllers ({connectedControllers.length})
-          </p>
-          <div className="space-y-2">
-            {connectedControllers.map((c) => (
-              <ControllerChild key={c.serialNumber} controller={c} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 border-t border-gray-800 pt-3">
-        {rebootError && (
-          <p className="text-xs text-red-400 mb-2">{rebootError}</p>
-        )}
-        <button
-          onClick={handleRebootToBootloader}
-          disabled={rebooting}
-          className="px-3 py-1.5 bg-amber-700 hover:bg-amber-600 disabled:bg-amber-900 disabled:cursor-not-allowed rounded text-xs font-medium transition-colors"
-        >
-          {rebooting ? "Rebooting..." : "Reboot to Bootloader"}
-        </button>
       </div>
     </div>
   );
