@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 export default defineConfig({
-  base: "/IbexFirmwareUploader/",
+  base: "/Ibex-Web-Utilities/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
