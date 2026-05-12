@@ -1,0 +1,155 @@
+.warningBox
+  background: rgba(245, 158, 11, 0.08)
+  border: 1px solid rgba(245, 158, 11, 0.25)
+  border-radius: 0.5rem
+  padding: 0.75rem
+  margin-bottom: 1rem
+
+.recoveryBox
+  background: rgba(59, 130, 246, 0.08)
+  border: 1px solid rgba(59, 130, 246, 0.25)
+  border-radius: 0.5rem
+  padding: 0.75rem
+  margin-bottom: 1rem
+
+.buttonRow
+  display: flex
+  justify-content: flex-end
+  gap: 0.5rem
+  margin-top: 1rem
+
+.primaryButton
+  display: inline-flex
+  align-items: center
+  gap: 0.5rem
+  padding: 0.5rem 1rem
+  border-radius: 0.5rem
+  font-size: 0.8125rem
+  font-weight: 500
+  cursor: pointer
+  transition: all 0.15s ease
+  background: rgba(245, 158, 11, 0.15)
+  color: #f59e0b
+  border: 1px solid rgba(245, 158, 11, 0.3)
+
+  &:hover:not(:disabled)
+    background: rgba(245, 158, 11, 0.25)
+    border-color: rgba(245, 158, 11, 0.45)
+
+  &:disabled
+    opacity: 0.5
+    cursor: not-allowed
+
+.cancelButton
+  display: inline-flex
+  align-items: center
+  gap: 0.5rem
+  padding: 0.5rem 1rem
+  border-radius: 0.5rem
+  font-size: 0.8125rem
+  font-weight: 500
+  cursor: pointer
+  transition: all 0.15s ease
+  background: rgba(107, 114, 128, 0.12)
+  color: #9ca3af
+  border: 1px solid rgba(107, 114, 128, 0.25)
+
+  &:hover
+    background: rgba(107, 114, 128, 0.22)
+    color: #e5e7eb
+
+.dangerButton
+  display: inline-flex
+  align-items: center
+  gap: 0.5rem
+  padding: 0.5rem 1rem
+  border-radius: 0.5rem
+  font-size: 0.8125rem
+  font-weight: 500
+  cursor: pointer
+  transition: all 0.15s ease
+  background: rgba(239, 68, 68, 0.15)
+  color: #ef4444
+  border: 1px solid rgba(239, 68, 68, 0.3)
+
+  &:hover
+    background: rgba(239, 68, 68, 0.25)
+    border-color: rgba(239, 68, 68, 0.45)
+
+.fileInput
+  display: block
+  width: 100%
+  padding: 0.75rem
+  border: 2px dashed rgba(107, 114, 128, 0.4)
+  border-radius: 0.5rem
+  background: rgba(107, 114, 128, 0.06)
+  color: #9ca3af
+  font-size: 0.8125rem
+  cursor: pointer
+  transition: border-color 0.15s ease
+
+  &:hover
+    border-color: rgba(245, 158, 11, 0.4)
+
+.errorText
+  color: #ef4444
+  font-size: 0.75rem
+  margin-top: 0.5rem
+
+.compareTable
+  width: 100%
+  font-size: 0.8125rem
+  border-collapse: collapse
+
+  th
+    text-align: left
+    padding: 0.5rem 0.75rem
+    color: #9ca3af
+    font-weight: 500
+    border-bottom: 1px solid rgba(42, 48, 64, 0.5)
+
+  td
+    padding: 0.5rem 0.75rem
+    color: #e5e7eb
+    font-family: ui-monospace, monospace
+    font-size: 0.75rem
+    border-bottom: 1px solid rgba(42, 48, 64, 0.3)
+
+.progressBar
+  width: 100%
+  height: 0.5rem
+  background: rgba(107, 114, 128, 0.2)
+  border-radius: 9999px
+  overflow: hidden
+  margin-top: 0.75rem
+
+  .fill
+    height: 100%
+    background: #f59e0b
+    border-radius: 9999px
+    transition: width 0.2s ease
+
+.statusText
+  display: flex
+  align-items: center
+  gap: 0.5rem
+  font-size: 0.875rem
+  color: #e5e7eb
+  margin-bottom: 0.25rem
+
+.successBox
+  text-align: center
+  padding: 1rem 0
+
+.successIcon
+  width: 3rem
+  height: 3rem
+  color: #4ade80
+  margin: 0 auto 0.75rem
+
+.errorBox
+  background: rgba(239, 68, 68, 0.08)
+  border: 1px solid rgba(239, 68, 68, 0.25)
+  border-radius: 0.5rem
+  padding: 0.75rem
+  margin-bottom: 1rem

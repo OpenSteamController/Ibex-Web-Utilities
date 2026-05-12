@@ -40,4 +40,5 @@ export const PROVISIONING_MAGIC = 0xac32a429;
 export const HID_REPORT_LEN = 64;
 export const FW_CHUNK_SIZE = 32768;
 export const FW_HEADER_SIZE = 32;
+export const FW_MAX_SIZE = 0x75000;
 export const MIN_HW_ID = 68;

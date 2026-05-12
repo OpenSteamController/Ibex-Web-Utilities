@@ -39,8 +39,10 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashingRef = useRef(false);
 
   const refreshDevices = useCallback(async () => {
+    if (flashingRef.current) return;
     try {
       const granted = await getGrantedHidDevices();
       const next = new Map<string, ConnectedDevice>();
@@ -246,7 +248,12 @@ export function App() {
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <main className="p-6">
-        <DeviceList devices={Array.from(devices.values())} bootloaderDevices={bootloaderDevices} />
+        <DeviceList
+          devices={Array.from(devices.values())}
+          bootloaderDevices={bootloaderDevices}
+          onFlashComplete={refreshDevicesAndRewatch}
+          onFlashingChange={(v) => { flashingRef.current = v; }}
+        />
       </main>
 
       <DebugPanel />

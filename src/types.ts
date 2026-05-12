@@ -87,6 +87,8 @@ export interface BootloaderInfo {
 
 export interface FirmwareMetadata {
   magic: number;
+  payloadSize: number;
+  payloadChecksum: number;
   headerBytes: Uint8Array;
 }
 

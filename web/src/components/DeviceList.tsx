@@ -7,9 +7,11 @@ import { ControllerIcon } from "./Icons";
 interface DeviceListProps {
   devices: ConnectedDevice[];
   bootloaderDevices: BootloaderDevice[];
+  onFlashComplete: () => void;
+  onFlashingChange: (flashing: boolean) => void;
 }
 
-export function DeviceList({ devices, bootloaderDevices }: DeviceListProps) {
+export function DeviceList({ devices, bootloaderDevices, onFlashComplete, onFlashingChange }: DeviceListProps) {
   if (devices.length === 0 && bootloaderDevices.length === 0) {
     return (
       <div className="max-w-lg mx-auto py-16" style={{ animation: "fade-in 0.3s ease-out" }}>
@@ -62,7 +64,7 @@ export function DeviceList({ devices, bootloaderDevices }: DeviceListProps) {
         <DeviceCard key={`hid-${i}`} device={dev} />
       ))}
       {bootloaderDevices.map((dev, i) => (
-        <BootloaderCard key={`bl-${i}`} device={dev} />
+        <BootloaderCard key={`bl-${i}`} device={dev} onFlashComplete={onFlashComplete} onFlashingChange={onFlashingChange} />
       ))}
     </div>
   );

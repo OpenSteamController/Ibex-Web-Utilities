@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { DeviceTypeNames } from "@lib/index.js";
 import { TRITON_FW_MAGIC, PROTEUS_FW_MAGIC } from "@lib/constants.js";
 import type { BootloaderDevice } from "@lib/index.js";
 import { TimestampValue } from "./TimestampValue";
-import { BootloaderIcon, HashIcon, FirmwareIcon, SerialIcon } from "./Icons";
+import { BootloaderIcon, HashIcon, FirmwareIcon, SerialIcon, FlashIcon } from "./Icons";
+import { FlashWizard } from "./FlashWizard";
 import styles from "./BootloaderCard.module.sass";
 
 function fwMagicName(magic: number): string {
@@ -13,9 +15,12 @@ function fwMagicName(magic: number): string {
 
 interface BootloaderCardProps {
   device: BootloaderDevice;
+  onFlashComplete: () => void;
+  onFlashingChange: (flashing: boolean) => void;
 }
 
-export function BootloaderCard({ device }: BootloaderCardProps) {
+export function BootloaderCard({ device, onFlashComplete, onFlashingChange }: BootloaderCardProps) {
+  const [wizardOpen, setWizardOpen] = useState(false);
   const { info, deviceType } = device;
 
   return (
@@ -73,9 +78,9 @@ export function BootloaderCard({ device }: BootloaderCardProps) {
           </div>
         </dl>
 
-        {info.installedFwMagic !== 0 && (
-          <div className="mt-4 border-t border-border-subtle pt-3">
-            <p className="text-xs text-gray-400 mb-2">Installed firmware</p>
+        <div className="mt-4 border-t border-border-subtle pt-3">
+          <p className="text-xs text-gray-400 mb-2">Installed firmware</p>
+          {info.installedFwMagic !== 0 && info.installedFwMagic !== 0xFFFFFFFF ? (
             <dl className={`${styles.infoList} text-sm`}>
               <div className="flex items-center justify-between">
                 <dt className="flex items-center gap-2 text-gray-400">
@@ -93,9 +98,29 @@ export function BootloaderCard({ device }: BootloaderCardProps) {
                 <dd className="font-mono text-gray-200">0x{info.installedFwChecksum.toString(16).toUpperCase()}</dd>
               </div>
             </dl>
-          </div>
-        )}
+          ) : (
+            <p className="text-sm text-gray-500 italic">No firmware installed</p>
+          )}
+        </div>
+
+        <div className="mt-4 border-t border-border-subtle pt-3">
+          <button
+            className={styles.flashButton}
+            onClick={() => setWizardOpen(true)}
+          >
+            <FlashIcon className="w-3.5 h-3.5" />
+            Flash Firmware
+          </button>
+        </div>
       </div>
+
+      <FlashWizard
+        device={device}
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onFlashComplete={onFlashComplete}
+        onFlashingChange={onFlashingChange}
+      />
     </div>
   );
 }
