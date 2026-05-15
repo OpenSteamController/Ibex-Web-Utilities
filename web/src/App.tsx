@@ -17,6 +17,7 @@ import {
 import type { ValveHidDevice, DeviceInfo, DeviceAttributes, ConnectedController, BootloaderDevice, BootloaderPort } from "@lib/index.js";
 import { ConnectButton } from "./components/ConnectButton";
 import { DeviceList } from "./components/DeviceList";
+import { UpdateWizard, deviceKey } from "./components/UpdateWizard";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { DebugPanel } from "./components/DebugPanel";
 import { PickerInstructionsModal } from "./components/PickerInstructionsModal";
@@ -25,7 +26,7 @@ import { usePickerFlow } from "./hooks/usePickerFlow";
 import { PickerProvider, type BootloaderPickerOptions } from "./picker-context";
 import { BOOTLOADER_PORT_FILTERS } from "./serial-filter";
 import { fetchFirmwareCatalog } from "./firmware-catalog";
-import type { FirmwareCatalog } from "./firmware-catalog";
+import type { FirmwareCatalog, FirmwareChannel } from "./firmware-catalog";
 
 export interface ConnectedDevice {
   hid: ValveHidDevice;
@@ -53,6 +54,15 @@ export function App() {
   const [bootloaderDevices, setBootloaderDevices] = useState<BootloaderDevice[]>([]);
   const [pendingPuckPorts, setPendingPuckPorts] = useState<BootloaderPort[]>([]);
   const [firmwareCatalog, setFirmwareCatalog] = useState<FirmwareCatalog | null>(null);
+  const [updateWizard, setUpdateWizard] = useState<
+    { initialDevice: ConnectedDevice; channel: FirmwareChannel } | null
+  >(null);
+  const handleRequestUpdate = useCallback(
+    (initialDevice: ConnectedDevice, channel: FirmwareChannel) => {
+      setUpdateWizard({ initialDevice, channel });
+    },
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -485,7 +495,20 @@ export function App() {
             onFlashComplete={refreshDevicesAndRewatch}
             onFlashingChange={(v) => { flashingRef.current = v; }}
             onExitBootloader={handleExitBootloader}
+            onRequestUpdate={handleRequestUpdate}
           />
+          {updateWizard && firmwareCatalog && (
+            <UpdateWizard
+              channel={updateWizard.channel}
+              initialDevice={updateWizard.initialDevice}
+              liveDevice={devices.get(deviceKey(updateWizard.initialDevice)) ?? null}
+              bootloaderDevices={bootloaderDevices}
+              firmwareCatalog={firmwareCatalog}
+              onClose={() => setUpdateWizard(null)}
+              onFlashingChange={(v) => { flashingRef.current = v; }}
+              onFlashComplete={refreshDevicesAndRewatch}
+            />
+          )}
         </PickerProvider>
       </main>
 

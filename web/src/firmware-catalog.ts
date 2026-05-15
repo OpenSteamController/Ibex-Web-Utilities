@@ -49,22 +49,40 @@ export function lookupFirmwareByCrc(
   return catalog.crc32_index[key] ?? null;
 }
 
-export type LatestFirmwareVersions = Partial<Record<FirmwareChannel, FirmwareEntry>>;
+export interface LatestFirmwareRelease {
+  filename: string;
+  entry: FirmwareEntry;
+}
+
+export type LatestFirmwareVersions = Partial<Record<FirmwareChannel, LatestFirmwareRelease>>;
 
 export function getLatestFirmware(
   catalog: FirmwareCatalog,
   category: FirmwareCategory,
 ): LatestFirmwareVersions {
   const out: LatestFirmwareVersions = {};
-  for (const entry of Object.values(catalog[category])) {
+  for (const [filename, entry] of Object.entries(catalog[category])) {
     const channels = entry.first_seen;
     if (!channels) continue;
     for (const channel of Object.keys(channels) as FirmwareChannel[]) {
       const current = out[channel];
-      if (!current || entry.version_unix > current.version_unix) {
-        out[channel] = entry;
+      if (!current || entry.version_unix > current.entry.version_unix) {
+        out[channel] = { filename, entry };
       }
     }
   }
   return out;
+}
+
+export async function downloadFirmware(
+  category: FirmwareCategory,
+  filename: string,
+): Promise<Uint8Array> {
+  const subdir = category === "puck" ? "Puck" : "Controller";
+  const url = new URL(`${subdir}/${filename}`, FIRMWARE_CATALOG_URL).toString();
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  }
+  return new Uint8Array(await res.arrayBuffer());
 }

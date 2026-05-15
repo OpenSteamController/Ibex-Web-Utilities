@@ -2,7 +2,7 @@ import type {
   FirmwareCatalog,
   FirmwareCategory,
   FirmwareChannel,
-  FirmwareEntry,
+  LatestFirmwareRelease,
 } from "../firmware-catalog";
 import { getLatestFirmware } from "../firmware-catalog";
 import { UpgradeArrowIcon } from "./Icons";
@@ -14,13 +14,13 @@ interface FirmwareUpdateBadgeProps {
   className?: string;
 }
 
-function formatReleaseDate(entry: FirmwareEntry, channel: FirmwareChannel): string {
-  const iso = entry.first_seen?.[channel]?.date;
+function formatReleaseDate(release: LatestFirmwareRelease, channel: FirmwareChannel): string {
+  const iso = release.entry.first_seen?.[channel]?.date;
   if (iso) {
     const d = new Date(iso);
     if (!isNaN(d.getTime())) return d.toLocaleDateString();
   }
-  return new Date(entry.version_unix * 1000).toLocaleDateString();
+  return new Date(release.entry.version_unix * 1000).toLocaleDateString();
 }
 
 export function FirmwareUpdateBadge({
@@ -35,8 +35,8 @@ export function FirmwareUpdateBadge({
   const stable = latest.stable;
   const beta = latest.publicbeta;
 
-  if (stable && stable.version_unix > current) {
-    const label = `Newer stable firmware available: v${stable.version_hex} (${formatReleaseDate(stable, "stable")}).`;
+  if (stable && stable.entry.version_unix > current) {
+    const label = `Newer stable firmware available: v${stable.entry.version_hex} (${formatReleaseDate(stable, "stable")}).`;
     return (
       <span
         className={`inline-flex text-amber-400 ${className ?? ""}`}
@@ -48,8 +48,8 @@ export function FirmwareUpdateBadge({
     );
   }
 
-  if (beta && beta.version_unix > current) {
-    const label = `Newer beta firmware available: v${beta.version_hex} (${formatReleaseDate(beta, "publicbeta")}). No newer stable release.`;
+  if (beta && beta.entry.version_unix > current) {
+    const label = `Newer beta firmware available: v${beta.entry.version_hex} (${formatReleaseDate(beta, "publicbeta")}). No newer stable release.`;
     return (
       <span
         className={`inline-flex text-valve-blue ${className ?? ""}`}

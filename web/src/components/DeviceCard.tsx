@@ -8,10 +8,11 @@ import {
 } from "@lib/index.js";
 import type { ConnectedController, DeviceAttributes } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
-import type { FirmwareCatalog } from "../firmware-catalog";
+import type { FirmwareCatalog, FirmwareChannel } from "../firmware-catalog";
 import { ExtraAttributes } from "./DeviceAttributes";
 import { TimestampValue } from "./TimestampValue";
 import { FirmwareUpdateBadge } from "./FirmwareUpdateBadge";
+import { buildUpdateTargets } from "./UpdateWizard";
 import {
   ControllerIcon,
   PuckIcon,
@@ -21,6 +22,7 @@ import {
   RebootIcon,
   SpinnerIcon,
   WirelessIcon,
+  UpgradeArrowIcon,
 } from "./Icons";
 import { usePicker } from "../picker-context";
 import styles from "./DeviceCard.module.sass";
@@ -156,14 +158,26 @@ const PROMOTED_KEYS = new Set([
 interface DeviceCardProps {
   device: ConnectedDevice;
   firmwareCatalog: FirmwareCatalog | null;
+  onRequestUpdate: (channel: FirmwareChannel) => void;
 }
 
-export function DeviceCard({ device, firmwareCatalog }: DeviceCardProps) {
+export function DeviceCard({
+  device,
+  firmwareCatalog,
+  onRequestUpdate,
+}: DeviceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [rebootError, setRebootError] = useState<string | null>(null);
   const { runBootloaderPicker } = usePicker();
   const { info, attrs, connectedControllers } = device;
+
+  const stableTargets = firmwareCatalog
+    ? buildUpdateTargets(device, "stable", firmwareCatalog)
+    : [];
+  const betaTargets = firmwareCatalog
+    ? buildUpdateTargets(device, "publicbeta", firmwareCatalog)
+    : [];
 
   const isPuck = info.deviceClass === DeviceClass.Proteus;
   const variant = isPuck ? "puck" : "controller";
@@ -297,23 +311,45 @@ export function DeviceCard({ device, firmwareCatalog }: DeviceCardProps) {
           {rebootError && (
             <p className="text-xs text-red-400 mb-2">{rebootError}</p>
           )}
-          <button
-            onClick={handleRebootToBootloader}
-            disabled={rebooting}
-            className={styles.rebootButton}
-          >
-            {rebooting ? (
-              <>
-                <SpinnerIcon className="h-3.5 w-3.5" />
-                Rebooting...
-              </>
-            ) : (
-              <>
-                <RebootIcon className="w-3.5 h-3.5" />
-                Reboot to Bootloader
-              </>
+          <div className="flex flex-wrap gap-2">
+            {stableTargets.length > 0 && firmwareCatalog && (
+              <button
+                onClick={() => onRequestUpdate("stable")}
+                disabled={rebooting}
+                className={styles.updateStableButton}
+              >
+                <UpgradeArrowIcon className="w-3.5 h-3.5" />
+                Update to Stable
+              </button>
             )}
-          </button>
+            {betaTargets.length > 0 && firmwareCatalog && (
+              <button
+                onClick={() => onRequestUpdate("publicbeta")}
+                disabled={rebooting}
+                className={styles.updateBetaButton}
+              >
+                <UpgradeArrowIcon className="w-3.5 h-3.5" />
+                Update to Beta
+              </button>
+            )}
+            <button
+              onClick={handleRebootToBootloader}
+              disabled={rebooting}
+              className={styles.rebootButton}
+            >
+              {rebooting ? (
+                <>
+                  <SpinnerIcon className="h-3.5 w-3.5" />
+                  Rebooting...
+                </>
+              ) : (
+                <>
+                  <RebootIcon className="w-3.5 h-3.5" />
+                  Reboot to Bootloader
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

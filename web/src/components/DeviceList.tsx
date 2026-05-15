@@ -1,6 +1,6 @@
 import type { BootloaderDevice, BootloaderPort } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
-import type { FirmwareCatalog } from "../firmware-catalog";
+import type { FirmwareCatalog, FirmwareChannel } from "../firmware-catalog";
 import { DeviceCard } from "./DeviceCard";
 import { BootloaderCard } from "./BootloaderCard";
 import { PendingPuckCard } from "./PendingPuckCard";
@@ -16,6 +16,7 @@ interface DeviceListProps {
   onFlashComplete: () => void;
   onFlashingChange: (flashing: boolean) => void;
   onExitBootloader: (device: BootloaderDevice) => Promise<void>;
+  onRequestUpdate: (device: ConnectedDevice, channel: FirmwareChannel) => void;
 }
 
 export function DeviceList({
@@ -28,6 +29,7 @@ export function DeviceList({
   onFlashComplete,
   onFlashingChange,
   onExitBootloader,
+  onRequestUpdate,
 }: DeviceListProps) {
   if (devices.length === 0 && bootloaderDevices.length === 0 && pendingPuckPorts.length === 0) {
     return (
@@ -80,7 +82,12 @@ export function DeviceList({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {devices.map((dev, i) => (
-        <DeviceCard key={`hid-${i}`} device={dev} firmwareCatalog={firmwareCatalog} />
+        <DeviceCard
+          key={`hid-${i}`}
+          device={dev}
+          firmwareCatalog={firmwareCatalog}
+          onRequestUpdate={(channel) => onRequestUpdate(dev, channel)}
+        />
       ))}
       {bootloaderDevices.map((dev, i) => (
         <BootloaderCard key={`bl-${i}`} device={dev} firmwareCatalog={firmwareCatalog} onFlashComplete={onFlashComplete} onFlashingChange={onFlashingChange} onExitBootloader={onExitBootloader} />
