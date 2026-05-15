@@ -1,15 +1,11 @@
 import { useState, useRef, useCallback } from "react";
 import {
   parseFirmware,
-  getFirmwareDeviceClass,
   validateFirmwareForDevice,
-  flashFirmware,
-  openSerialPort,
-  closeSerialPort,
   DeviceClass,
 } from "@lib/index.js";
 import { TRITON_FW_MAGIC, PROTEUS_FW_MAGIC } from "@lib/constants.js";
-import type { BootloaderDevice, FirmwareFile, UpdateEvent } from "@lib/index.js";
+import type { BootloaderDevice, FirmwareFile } from "@lib/index.js";
 import type { FirmwareCatalog, FirmwareChannel, LatestFirmwareRelease } from "../firmware-catalog";
 import {
   downloadFirmware,
@@ -18,13 +14,9 @@ import {
   primaryChannel,
 } from "../firmware-catalog";
 import { Modal } from "./Modal";
-import {
-  WarningIcon,
-  FlashIcon,
-  SpinnerIcon,
-  CheckCircleIcon,
-  UploadIcon,
-} from "./Icons";
+import { FlashIcon, SpinnerIcon, UploadIcon } from "./Icons";
+import { useFlashAttempt } from "../hooks/useFlashAttempt";
+import { FlashProgressView, WarningPanel, SuccessPanel } from "./WizardPanels";
 import styles from "./FlashWizard.module.sass";
 
 type WizardStep =
@@ -58,23 +50,23 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
   const [step, setStep] = useState<WizardStep>("disclaimer");
   const [firmware, setFirmware] = useState<FirmwareFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [flashStatus, setFlashStatus] = useState<UpdateEvent | null>(null);
   const [flashError, setFlashError] = useState<string | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [downloadingFilename, setDownloadingFilename] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const flashAttempted = useRef(false);
+  const { status: flashStatus, runFlash, resetStatus } = useFlashAttempt();
 
   const reset = useCallback(() => {
     setStep("disclaimer");
     setFirmware(null);
     setFileError(null);
-    setFlashStatus(null);
+    resetStatus();
     setFlashError(null);
     setCatalogSearch("");
     setDownloadingFilename(null);
     flashAttempted.current = false;
-  }, []);
+  }, [resetStatus]);
 
   const handleClose = useCallback(() => {
     const needsRefresh = flashAttempted.current;
@@ -128,34 +120,19 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
     flashAttempted.current = true;
     onFlashingChange(true);
 
-    let transport;
-    try {
-      transport = await openSerialPort(device.port);
-    } catch (err) {
-      setFlashError(`Failed to open serial port: ${err instanceof Error ? err.message : String(err)}`);
-      setStep("error");
+    const outcome = await runFlash(device.port, firmware);
+
+    if (outcome.ok) {
+      setStep("complete");
       return;
     }
 
-    try {
-      await flashFirmware(transport, firmware, (event) => {
-        setFlashStatus(event);
-      });
-      setStep("complete");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setFlashError(
-        `${msg}\n\nThe controller will reboot into bootloader mode automatically. Please reconnect and try again.`,
-      );
-      setStep("error");
-    } finally {
-      try {
-        await closeSerialPort(transport);
-      } catch {
-        // Port may already be closed after reset
-      }
-    }
-  }, [firmware, device.port, onFlashingChange]);
+    const message = outcome.phase === "open"
+      ? `Failed to open serial port: ${outcome.error.message}`
+      : `${outcome.error.message}\n\nThe controller will reboot into bootloader mode automatically. Please reconnect and try again.`;
+    setFlashError(message);
+    setStep("error");
+  }, [firmware, device.port, onFlashingChange, runFlash]);
 
   const handleDone = handleClose;
 
@@ -183,22 +160,14 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
               Firmware will be downloaded from the OpenSteamController index.
             </p>
           )}
-          <div className={styles.warningBox}>
-            <div className="flex items-start gap-2">
-              <WarningIcon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-sm text-gray-300">
-                <p className="font-medium text-amber-400 mb-2">Warning: Proceed at your own risk</p>
-                <ul className="space-y-1 text-xs text-gray-400 list-disc list-inside">
-                  <li>This tool is unofficial and not affiliated with Valve.</li>
-                  {mode === "file" && (
-                    <li>Unofficial firmware not provided by Valve may cause permanent, irreversible damage to your controller.</li>
-                  )}
-                  <li>You accept full responsibility for any damage to your device.</li>
-                  <li>The authors accept no liability for bricked, damaged, or destroyed devices, regardless of the firmware used.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          <WarningPanel>
+            <li>This tool is unofficial and not affiliated with Valve.</li>
+            {mode === "file" && (
+              <li>Unofficial firmware not provided by Valve may cause permanent, irreversible damage to your controller.</li>
+            )}
+            <li>You accept full responsibility for any damage to your device.</li>
+            <li>The authors accept no liability for bricked, damaged, or destroyed devices, regardless of the firmware used.</li>
+          </WarningPanel>
 
           <div className={styles.recoveryBox}>
             <p className="text-xs font-medium text-blue-400 mb-2">Recovery instructions</p>
@@ -387,38 +356,12 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
         </>
         ); })()}
 
-      {step === "flashing" && (
-        <>
-          <div className={styles.statusText}>
-            <SpinnerIcon className="w-4 h-4" />
-            {flashStatus?.type === "erasing" && "Erasing flash..."}
-            {flashStatus?.type === "programming" && `Programming... ${Math.round(flashStatus.percent)}%`}
-            {flashStatus?.type === "finalizing" && "Finalizing..."}
-            {flashStatus?.type === "resetting" && "Resetting device..."}
-            {!flashStatus && "Preparing..."}
-          </div>
-
-          {flashStatus?.type === "programming" && (
-            <div className={styles.progressBar}>
-              <div className={styles.fill} style={{ width: `${flashStatus.percent}%` }} />
-            </div>
-          )}
-
-          <p className="text-xs text-gray-500 mt-3">
-            Do not disconnect the device during this process.
-          </p>
-        </>
-      )}
+      {step === "flashing" && <FlashProgressView status={flashStatus} />}
 
       {step === "complete" && (
-        <div className={styles.successBox}>
-          <CheckCircleIcon className={styles.successIcon} />
-          <p className="text-base font-medium text-gray-200 mb-1">Firmware flashed successfully!</p>
-          <p className="text-sm text-gray-400">Your device will restart momentarily.</p>
-          <div className={styles.buttonRow} style={{ justifyContent: "center" }}>
-            <button className={styles.primaryButton} onClick={handleDone}>Done</button>
-          </div>
-        </div>
+        <SuccessPanel title="Firmware flashed successfully!" onDone={handleDone}>
+          Your device will restart momentarily.
+        </SuccessPanel>
       )}
 
       {step === "error" && (

@@ -24,6 +24,7 @@ import { PickerInstructionsModal } from "./components/PickerInstructionsModal";
 import { GitHubIcon } from "./components/Icons";
 import { usePickerFlow } from "./hooks/usePickerFlow";
 import { PickerProvider, type BootloaderPickerOptions } from "./picker-context";
+import { DeviceCardsProvider } from "./device-cards-context";
 import { BOOTLOADER_PORT_FILTERS } from "./serial-filter";
 import { fetchFirmwareCatalog } from "./firmware-catalog";
 import type { FirmwareCatalog, FirmwareChannel } from "./firmware-catalog";
@@ -33,6 +34,22 @@ export interface ConnectedDevice {
   info: DeviceInfo;
   attrs: DeviceAttributes | null;
   connectedControllers: ConnectedController[];
+}
+
+/** Attach a fresh controller list to every Proteus entry in the map.
+ *  Pure — returns a new Map. Shared by full and lightweight refresh paths
+ *  so they can't drift in how they apply controller scans. */
+function mergeConnectedControllers(
+  devices: Map<string, ConnectedDevice>,
+  controllers: ConnectedController[],
+): Map<string, ConnectedDevice> {
+  const next = new Map(devices);
+  for (const [key, dev] of next) {
+    if (dev.info.deviceClass === DeviceClass.Proteus) {
+      next.set(key, { ...dev, connectedControllers: controllers });
+    }
+  }
+  return next;
 }
 
 /** Debounce delay for USB hotplug events (ms).
@@ -87,6 +104,13 @@ export function App() {
    *  value synchronously (the useCallback closure captures a stale one). */
   const bootloaderDevicesRef = useRef<BootloaderDevice[]>([]);
 
+  /** Always write bootloader-device state through this setter — never call
+   *  `setBootloaderDevices` directly. The wrapper keeps
+   *  `bootloaderDevicesRef.current` in lockstep with the rendered state so
+   *  `refreshDevices` (a `useCallback` whose closure captures an outdated
+   *  state value) can read what's actually present without forcing a
+   *  dependency rebuild. Bypassing it desyncs the ref and refreshDevices
+   *  will overwrite recently-opened Pucks with a stale snapshot. */
   const setBootloaderDevicesSynced = useCallback(
     (updater: BootloaderDevice[] | ((prev: BootloaderDevice[]) => BootloaderDevice[])) => {
       setBootloaderDevices((prev) => {
@@ -119,15 +143,7 @@ export function App() {
 
       // Scan controller slots and attach to dongle devices
       const controllers = await getConnectedControllers();
-      if (controllers.length > 0) {
-        for (const [key, dev] of next) {
-          if (dev.info.deviceClass === DeviceClass.Proteus) {
-            next.set(key, { ...dev, connectedControllers: controllers });
-          }
-        }
-      }
-
-      setDevices(next);
+      setDevices(mergeConnectedControllers(next, controllers));
     } catch {
       // WebHID may not be available
     }
@@ -215,17 +231,7 @@ export function App() {
   const refreshControllers = useCallback(async () => {
     try {
       const controllers = await getConnectedControllers();
-      setDevices((prev) => {
-        const next = new Map(prev);
-        let changed = false;
-        for (const [key, dev] of next) {
-          if (dev.info.deviceClass === DeviceClass.Proteus) {
-            next.set(key, { ...dev, connectedControllers: controllers });
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
+      setDevices((prev) => mergeConnectedControllers(prev, controllers));
     } catch {
       // No dongle or WebHID unavailable
     }
@@ -500,18 +506,23 @@ export function App() {
 
       <main className="flex-1 p-6">
         <PickerProvider value={{ runBootloaderPicker }}>
-          <DeviceList
-            devices={Array.from(devices.values())}
-            bootloaderDevices={bootloaderDevices}
-            pendingPuckPorts={pendingPuckPorts}
-            puckTimeoutMs={PUCK_BOOTLOADER_TIMEOUT_MS}
-            onConnectPendingPuck={connectPendingPuckPort}
-            firmwareCatalog={firmwareCatalog}
-            onFlashComplete={refreshDevicesAndRewatch}
-            onFlashingChange={(v) => { flashingRef.current = v; }}
-            onExitBootloader={handleExitBootloader}
-            onRequestUpdate={handleRequestUpdate}
-          />
+          <DeviceCardsProvider
+            value={{
+              firmwareCatalog,
+              puckTimeoutMs: PUCK_BOOTLOADER_TIMEOUT_MS,
+              onConnectPendingPuck: connectPendingPuckPort,
+              onExitBootloader: handleExitBootloader,
+              onRequestUpdate: handleRequestUpdate,
+              onFlashComplete: refreshDevicesAndRewatch,
+              onFlashingChange: (v) => { flashingRef.current = v; },
+            }}
+          >
+            <DeviceList
+              devices={Array.from(devices.values())}
+              bootloaderDevices={bootloaderDevices}
+              pendingPuckPorts={pendingPuckPorts}
+            />
+          </DeviceCardsProvider>
           {updateWizard && firmwareCatalog && (
             <UpdateWizard
               channel={updateWizard.channel}

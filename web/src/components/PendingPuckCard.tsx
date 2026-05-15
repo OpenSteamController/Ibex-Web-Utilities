@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import type { BootloaderPort } from "@lib/index.js";
 import { PuckIcon, BootloaderIcon, SpinnerIcon } from "./Icons";
+import { useDeviceCards } from "../device-cards-context";
 import styles from "./BootloaderCard.module.sass";
 
 interface PendingPuckCardProps {
   pending: BootloaderPort;
-  timeoutMs: number;
-  onConnect: (bp: BootloaderPort) => Promise<void>;
 }
 
 /**
@@ -15,31 +14,32 @@ interface PendingPuckCardProps {
  * DeviceCard takes over. Clicking the button stops the timeout and
  * opens the port now.
  */
-export function PendingPuckCard({ pending, timeoutMs, onConnect }: PendingPuckCardProps) {
+export function PendingPuckCard({ pending }: PendingPuckCardProps) {
+  const { puckTimeoutMs, onConnectPendingPuck } = useDeviceCards();
   const [busy, setBusy] = useState(false);
-  const [remaining, setRemaining] = useState(timeoutMs);
+  const [remaining, setRemaining] = useState(puckTimeoutMs);
 
   useEffect(() => {
     const start = performance.now();
     const interval = setInterval(() => {
-      const r = Math.max(0, timeoutMs - (performance.now() - start));
+      const r = Math.max(0, puckTimeoutMs - (performance.now() - start));
       setRemaining(r);
       if (r <= 0) clearInterval(interval);
     }, 100);
     return () => clearInterval(interval);
-  }, [timeoutMs]);
+  }, [puckTimeoutMs]);
 
   const handleClick = async () => {
     setBusy(true);
     try {
-      await onConnect(pending);
+      await onConnectPendingPuck(pending);
     } catch {
       setBusy(false);
     }
   };
 
   const seconds = Math.ceil(remaining / 1000);
-  const progress = Math.max(0, Math.min(1, remaining / timeoutMs));
+  const progress = Math.max(0, Math.min(1, remaining / puckTimeoutMs));
 
   return (
     <div className={styles.card}>
@@ -72,7 +72,7 @@ export function PendingPuckCard({ pending, timeoutMs, onConnect }: PendingPuckCa
         <button
           onClick={handleClick}
           disabled={busy}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className={styles.pendingPuckButton}
         >
           {busy ? (
             <>

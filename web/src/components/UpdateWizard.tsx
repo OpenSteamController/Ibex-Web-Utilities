@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   parseFirmware,
   validateFirmwareForDevice,
-  flashFirmware,
-  openSerialPort,
-  closeSerialPort,
   rebootToBootloader,
   rebootControllerSlot,
   DeviceClass,
@@ -13,7 +10,6 @@ import { TRITON_FW_MAGIC, PROTEUS_FW_MAGIC } from "@lib/constants.js";
 import type {
   BootloaderDevice,
   FirmwareFile,
-  UpdateEvent,
 } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
 import type {
@@ -24,7 +20,9 @@ import type {
 import { downloadFirmware, getLatestFirmware } from "../firmware-catalog";
 import { Modal } from "./Modal";
 import { usePicker } from "../picker-context";
-import { WarningIcon, FlashIcon, SpinnerIcon, CheckCircleIcon } from "./Icons";
+import { useFlashAttempt } from "../hooks/useFlashAttempt";
+import { FlashProgressView, WarningPanel, SuccessPanel } from "./WizardPanels";
+import { FlashIcon, SpinnerIcon } from "./Icons";
 import styles from "./FlashWizard.module.sass";
 
 type Target =
@@ -39,7 +37,7 @@ type Phase =
   | { kind: "prompt"; index: number }
   | { kind: "rebooting"; index: number }
   | { kind: "awaiting-bootloader"; index: number }
-  | { kind: "flashing"; index: number; status: UpdateEvent | null }
+  | { kind: "flashing"; index: number }
   | { kind: "step-error"; index: number; message: string }
   | { kind: "complete"; flashed: string[] };
 
@@ -138,6 +136,7 @@ export function UpdateWizard({
   onFlashComplete,
 }: UpdateWizardProps) {
   const { runBootloaderPicker } = usePicker();
+  const { status: flashStatus, runFlash: runFlashAttempt } = useFlashAttempt();
 
   // Snapshot targets once. We deliberately don't recompute when liveDevice
   // changes — the work the wizard is committed to is fixed at open time.
@@ -263,52 +262,26 @@ export function UpdateWizard({
       if (!firmware) return;
 
       onFlashingChange(true);
-      setPhase({ kind: "flashing", index, status: null });
+      setPhase({ kind: "flashing", index });
 
-      let transport;
-      try {
-        transport = await openSerialPort(bootloader.port);
-      } catch (err) {
-        onFlashingChange(false);
-        setPhase({
-          kind: "step-error",
-          index,
-          message: `Failed to open serial port: ${err instanceof Error ? err.message : String(err)}`,
-        });
-        return;
-      }
+      const outcome = await runFlashAttempt(bootloader.port, firmware);
+      onFlashingChange(false);
 
-      try {
-        await flashFirmware(transport, firmware, (event) => {
-          setPhase((prev) =>
-            prev.kind === "flashing" && prev.index === index
-              ? { ...prev, status: event }
-              : prev,
-          );
-        });
-        onFlashingChange(false);
+      if (outcome.ok) {
         if (index + 1 < targets.length) {
           setPhase({ kind: "prompt", index: index + 1 });
         } else {
           setPhase({ kind: "complete", flashed: targets.map((t) => t.label) });
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        onFlashingChange(false);
-        setPhase({
-          kind: "step-error",
-          index,
-          message: `${msg}\n\nThe device should still be in bootloader mode. You can retry.`,
-        });
-      } finally {
-        try {
-          await closeSerialPort(transport);
-        } catch {
-          // Port may already be closed after reset.
-        }
+        return;
       }
+
+      const message = outcome.phase === "open"
+        ? `Failed to open serial port: ${outcome.error.message}`
+        : `${outcome.error.message}\n\nThe device should still be in bootloader mode. You can retry.`;
+      setPhase({ kind: "step-error", index, message });
     },
-    [targets, firmwares, onFlashingChange],
+    [targets, firmwares, onFlashingChange, runFlashAttempt],
   );
 
   // Watch for a freshly-arrived bootloader matching the current target.
@@ -400,19 +373,11 @@ export function UpdateWizard({
             ))}
           </ul>
 
-          <div className={styles.warningBox}>
-            <div className="flex items-start gap-2">
-              <WarningIcon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-sm text-gray-300">
-                <p className="font-medium text-amber-400 mb-2">Warning: Proceed at your own risk</p>
-                <ul className="space-y-1 text-xs text-gray-400 list-disc list-inside">
-                  <li>This tool is unofficial and not affiliated with Valve.</li>
-                  <li>Unofficial firmware may cause permanent damage.</li>
-                  <li>You accept full responsibility for any damage to your device.</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          <WarningPanel>
+            <li>This tool is unofficial and not affiliated with Valve.</li>
+            <li>Unofficial firmware may cause permanent damage.</li>
+            <li>You accept full responsibility for any damage to your device.</li>
+          </WarningPanel>
 
           <div className={styles.recoveryBox}>
             <p className="text-xs font-medium text-blue-400 mb-2">If something goes wrong</p>
@@ -509,25 +474,7 @@ export function UpdateWizard({
       )}
 
       {phase.kind === "flashing" && targets[phase.index] && (
-        <>
-          <p className="text-xs text-gray-400 mb-2">Flashing {targets[phase.index].label}…</p>
-          <div className={styles.statusText}>
-            <SpinnerIcon className="w-4 h-4" />
-            {phase.status?.type === "erasing" && "Erasing flash..."}
-            {phase.status?.type === "programming" && `Programming... ${Math.round(phase.status.percent)}%`}
-            {phase.status?.type === "finalizing" && "Finalizing..."}
-            {phase.status?.type === "resetting" && "Resetting device..."}
-            {!phase.status && "Preparing..."}
-          </div>
-          {phase.status?.type === "programming" && (
-            <div className={styles.progressBar}>
-              <div className={styles.fill} style={{ width: `${phase.status.percent}%` }} />
-            </div>
-          )}
-          <p className="text-xs text-gray-500 mt-3">
-            Do not disconnect the device during this process.
-          </p>
-        </>
+        <FlashProgressView status={flashStatus} label={targets[phase.index].label} />
       )}
 
       {phase.kind === "step-error" && targets[phase.index] && (
@@ -549,20 +496,11 @@ export function UpdateWizard({
       )}
 
       {phase.kind === "complete" && (
-        <div className={styles.successBox}>
-          <CheckCircleIcon className={styles.successIcon} />
-          <p className="text-base font-medium text-gray-200 mb-1">Update complete</p>
-          {phase.flashed.length > 0 ? (
-            <p className="text-sm text-gray-400">
-              Updated: {phase.flashed.join(", ")}.
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400">Nothing was flashed.</p>
-          )}
-          <div className={styles.buttonRow} style={{ justifyContent: "center" }}>
-            <button className={styles.primaryButton} onClick={handleClose}>Done</button>
-          </div>
-        </div>
+        <SuccessPanel title="Update complete" onDone={handleClose}>
+          {phase.flashed.length > 0
+            ? `Updated: ${phase.flashed.join(", ")}.`
+            : "Nothing was flashed."}
+        </SuccessPanel>
       )}
     </Modal>
   );

@@ -36,6 +36,10 @@ function getDeviceClass(deviceType: DeviceType): DeviceClass {
     case DeviceType.ProteusUSB:
     case DeviceType.NereidUSB:
       return DeviceClass.Proteus;
+    default: {
+      const _exhaustive: never = deviceType;
+      throw new Error(`Unhandled DeviceType: ${_exhaustive}`);
+    }
   }
 }
 

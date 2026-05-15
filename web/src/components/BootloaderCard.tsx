@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { DeviceType } from "@lib/index.js";
 import { TRITON_FW_MAGIC, PROTEUS_FW_MAGIC } from "@lib/constants.js";
 import type { BootloaderDevice } from "@lib/index.js";
-import type { FirmwareCatalog, FirmwareCategory } from "../firmware-catalog";
+import type { FirmwareCategory } from "../firmware-catalog";
 import { lookupFirmwareByCrc } from "../firmware-catalog";
 import { TimestampValue } from "./TimestampValue";
 import { FirmwareUpdateBadge } from "./FirmwareUpdateBadge";
 import { BootloaderIcon, HashIcon, FirmwareIcon, SerialIcon, FlashIcon, RebootIcon, SpinnerIcon } from "./Icons";
 import { FlashWizard, type FlashWizardMode } from "./FlashWizard";
 import { useShiftKey } from "../use-shift-key";
+import { useDeviceCards } from "../device-cards-context";
 import styles from "./BootloaderCard.module.sass";
 
 function fwMagicName(magic: number): string {
@@ -26,13 +27,10 @@ const BOOTLOADER_IDLE_TIMEOUT_MS = 120_000;
 
 interface BootloaderCardProps {
   device: BootloaderDevice;
-  firmwareCatalog: FirmwareCatalog | null;
-  onFlashComplete: () => void;
-  onFlashingChange: (flashing: boolean) => void;
-  onExitBootloader: (device: BootloaderDevice) => Promise<void>;
 }
 
-export function BootloaderCard({ device, firmwareCatalog, onFlashComplete, onFlashingChange, onExitBootloader }: BootloaderCardProps) {
+export function BootloaderCard({ device }: BootloaderCardProps) {
+  const { firmwareCatalog, onFlashComplete, onFlashingChange, onExitBootloader } = useDeviceCards();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState<FlashWizardMode>("catalog");
   const shiftHeld = useShiftKey();
@@ -50,7 +48,7 @@ export function BootloaderCard({ device, firmwareCatalog, onFlashComplete, onFla
 
   useEffect(() => {
     const tick = () => setNow(Date.now());
-    const id = setInterval(tick, 500);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
 

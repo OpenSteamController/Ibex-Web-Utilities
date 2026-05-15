@@ -3,6 +3,9 @@ export enum DeviceType {
   ProteusBootloader = 1,
   TritonUSB = 2,
   TritonBLE = 3,
+  /** Triton reached over the Puck's wireless link (Enhanced ShockBurst).
+   *  Read-only from the host: flashing must happen over USB, after a
+   *  reboot-to-bootloader command has been relayed over RF. */
   TritonESB = 4,
   ProteusUSB = 5,
   NereidUSB = 6,

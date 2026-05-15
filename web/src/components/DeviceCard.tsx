@@ -8,7 +8,7 @@ import {
 } from "@lib/index.js";
 import type { ConnectedController, DeviceAttributes } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
-import type { FirmwareCatalog, FirmwareChannel } from "../firmware-catalog";
+import type { FirmwareCatalog } from "../firmware-catalog";
 import { ExtraAttributes } from "./DeviceAttributes";
 import { TimestampValue } from "./TimestampValue";
 import { FirmwareUpdateBadge } from "./FirmwareUpdateBadge";
@@ -25,6 +25,7 @@ import {
   UpgradeArrowIcon,
 } from "./Icons";
 import { usePicker } from "../picker-context";
+import { useDeviceCards } from "../device-cards-context";
 import styles from "./DeviceCard.module.sass";
 
 function connectionChip(type: DeviceType): { label: string; variant: "usb" | "ble" | "esb" } {
@@ -158,19 +159,14 @@ const PROMOTED_KEYS = new Set([
 
 interface DeviceCardProps {
   device: ConnectedDevice;
-  firmwareCatalog: FirmwareCatalog | null;
-  onRequestUpdate: (channel: FirmwareChannel) => void;
 }
 
-export function DeviceCard({
-  device,
-  firmwareCatalog,
-  onRequestUpdate,
-}: DeviceCardProps) {
+export function DeviceCard({ device }: DeviceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [rebootError, setRebootError] = useState<string | null>(null);
   const { runBootloaderPicker } = usePicker();
+  const { firmwareCatalog, onRequestUpdate } = useDeviceCards();
   const { info, attrs, connectedControllers } = device;
 
   const stableTargets = firmwareCatalog
@@ -317,7 +313,7 @@ export function DeviceCard({
           <div className="flex flex-wrap gap-2">
             {stableTargets.length > 0 && firmwareCatalog && (
               <button
-                onClick={() => onRequestUpdate("stable")}
+                onClick={() => onRequestUpdate(device, "stable")}
                 disabled={rebooting}
                 className={styles.updateStableButton}
               >
@@ -327,7 +323,7 @@ export function DeviceCard({
             )}
             {betaTargets.length > 0 && firmwareCatalog && (
               <button
-                onClick={() => onRequestUpdate("publicbeta")}
+                onClick={() => onRequestUpdate(device, "publicbeta")}
                 disabled={rebooting}
                 className={styles.updateBetaButton}
               >

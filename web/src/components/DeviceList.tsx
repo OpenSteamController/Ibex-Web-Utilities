@@ -1,6 +1,5 @@
 import type { BootloaderDevice, BootloaderPort } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
-import type { FirmwareCatalog, FirmwareChannel } from "../firmware-catalog";
 import { DeviceCard } from "./DeviceCard";
 import { BootloaderCard } from "./BootloaderCard";
 import { PendingPuckCard } from "./PendingPuckCard";
@@ -10,26 +9,12 @@ interface DeviceListProps {
   devices: ConnectedDevice[];
   bootloaderDevices: BootloaderDevice[];
   pendingPuckPorts: BootloaderPort[];
-  puckTimeoutMs: number;
-  onConnectPendingPuck: (bp: BootloaderPort) => Promise<void>;
-  firmwareCatalog: FirmwareCatalog | null;
-  onFlashComplete: () => void;
-  onFlashingChange: (flashing: boolean) => void;
-  onExitBootloader: (device: BootloaderDevice) => Promise<void>;
-  onRequestUpdate: (device: ConnectedDevice, channel: FirmwareChannel) => void;
 }
 
 export function DeviceList({
   devices,
   bootloaderDevices,
   pendingPuckPorts,
-  puckTimeoutMs,
-  onConnectPendingPuck,
-  firmwareCatalog,
-  onFlashComplete,
-  onFlashingChange,
-  onExitBootloader,
-  onRequestUpdate,
 }: DeviceListProps) {
   if (devices.length === 0 && bootloaderDevices.length === 0 && pendingPuckPorts.length === 0) {
     return (
@@ -82,23 +67,13 @@ export function DeviceList({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {devices.map((dev, i) => (
-        <DeviceCard
-          key={`hid-${i}`}
-          device={dev}
-          firmwareCatalog={firmwareCatalog}
-          onRequestUpdate={(channel) => onRequestUpdate(dev, channel)}
-        />
+        <DeviceCard key={`hid-${i}`} device={dev} />
       ))}
       {bootloaderDevices.map((dev, i) => (
-        <BootloaderCard key={`bl-${i}`} device={dev} firmwareCatalog={firmwareCatalog} onFlashComplete={onFlashComplete} onFlashingChange={onFlashingChange} onExitBootloader={onExitBootloader} />
+        <BootloaderCard key={`bl-${i}`} device={dev} />
       ))}
       {pendingPuckPorts.map((p, i) => (
-        <PendingPuckCard
-          key={`pending-${i}`}
-          pending={p}
-          timeoutMs={puckTimeoutMs}
-          onConnect={onConnectPendingPuck}
-        />
+        <PendingPuckCard key={`pending-${i}`} pending={p} />
       ))}
     </div>
   );
