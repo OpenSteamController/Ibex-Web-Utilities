@@ -364,6 +364,7 @@ export function App() {
 
   const hidPicker = usePickerFlow();
   const bootloaderPicker = usePickerFlow();
+  const [bootloaderPickerPostReboot, setBootloaderPickerPostReboot] = useState(false);
 
   /** Trigger a bootloader connect flow. Always shows the instructional
    *  modal; on Continue we run the device action, then check whether the
@@ -382,13 +383,23 @@ export function App() {
    *  bootloader mode. We poll briefly to give the device time to
    *  re-enumerate. */
   const runBootloaderPicker = useCallback(
-    async ({ deviceClass, action }: BootloaderPickerOptions) => {
+    async ({ deviceClass, action, actionFirst }: BootloaderPickerOptions) => {
       userInitiatedBootloaderRef.current = true;
+      setBootloaderPickerPostReboot(!!actionFirst);
+      let confirmed = false;
+      rebootingRef.current = true;
 
-      const wrappedFn = async () => {
-        rebootingRef.current = true;
-        try {
-          if (action) await action();
+      try {
+        // For wireless connections (BLE/ESB) the reboot command travels
+        // over a channel separate from USB. Fire it now so the modal
+        // text we show next can accurately say "the device is rebooting,
+        // plug it in for the bootloader."
+        if (actionFirst && action) {
+          await action();
+        }
+
+        const wrappedFn = async () => {
+          if (action && !actionFirst) await action();
 
           if (deviceClass !== undefined) {
             const POLL_DEADLINE = Date.now() + 2000;
@@ -402,12 +413,13 @@ export function App() {
           }
 
           await navigator.serial.requestPort({ filters: BOOTLOADER_PORT_FILTERS });
-        } finally {
-          rebootingRef.current = false;
-        }
-      };
+        };
 
-      const confirmed = await bootloaderPicker.run(wrappedFn);
+        confirmed = await bootloaderPicker.run(wrappedFn);
+      } finally {
+        rebootingRef.current = false;
+      }
+
       if (confirmed) {
         await refreshDevicesAndRewatch();
       } else {
@@ -537,6 +549,7 @@ export function App() {
       <PickerInstructionsModal
         isOpen={bootloaderPicker.open}
         mode="bootloader"
+        postReboot={bootloaderPickerPostReboot}
         busy={bootloaderPicker.busy}
         onContinue={bootloaderPicker.confirm}
         onCancel={bootloaderPicker.cancel}

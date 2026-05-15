@@ -230,6 +230,10 @@ export function UpdateWizard({
       pickerOk = await runBootloaderPicker({
         deviceClass: expectedClass(target),
         action: rebootAction,
+        // Wireless slot reboots go over the Puck's RF link — the Triton
+        // doesn't need USB to receive the reboot, only to expose the
+        // bootloader afterwards. Send first, then prompt for USB.
+        actionFirst: target.kind === "triton-wireless",
       });
     } catch (err) {
       setPhase({
@@ -351,17 +355,6 @@ export function UpdateWizard({
   const retryStep = useCallback(
     (index: number) => setPhase({ kind: "prompt", index }),
     [],
-  );
-
-  const skipStep = useCallback(
-    (index: number) => {
-      if (index + 1 < targets.length) {
-        setPhase({ kind: "prompt", index: index + 1 });
-      } else {
-        setPhase({ kind: "complete", flashed: [] });
-      }
-    },
-    [targets],
   );
 
   const title = (() => {
@@ -489,11 +482,6 @@ export function UpdateWizard({
             )}
             <div className={styles.buttonRow}>
               <button className={styles.cancelButton} onClick={handleClose}>Cancel</button>
-              {phase.index + 1 < targets.length && (
-                <button className={styles.cancelButton} onClick={() => skipStep(phase.index)}>
-                  Skip
-                </button>
-              )}
               <button
                 className={styles.primaryButton}
                 onClick={() => void beginTarget(phase.index)}
@@ -552,11 +540,6 @@ export function UpdateWizard({
           </div>
           <div className={styles.buttonRow}>
             <button className={styles.cancelButton} onClick={handleClose}>Cancel</button>
-            {phase.index + 1 < targets.length && (
-              <button className={styles.cancelButton} onClick={() => skipStep(phase.index)}>
-                Skip
-              </button>
-            )}
             <button className={styles.primaryButton} onClick={() => retryStep(phase.index)}>
               <FlashIcon className="w-4 h-4" />
               Retry

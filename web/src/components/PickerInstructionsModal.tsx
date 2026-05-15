@@ -5,6 +5,10 @@ import styles from "./FlashWizard.module.sass";
 interface PickerInstructionsModalProps {
   isOpen: boolean;
   mode: "hid" | "bootloader";
+  /** Bootloader mode only: true when the reboot command has already been
+   *  sent (i.e. caller used `actionFirst`), so the copy can describe the
+   *  state the user is actually in. */
+  postReboot?: boolean;
   busy: boolean;
   onContinue: () => void;
   onCancel: () => void;
@@ -18,6 +22,7 @@ interface PickerInstructionsModalProps {
 export function PickerInstructionsModal({
   isOpen,
   mode,
+  postReboot,
   busy,
   onContinue,
   onCancel,
@@ -29,7 +34,7 @@ export function PickerInstructionsModal({
       <div className="flex items-start gap-3">
         <InfoIcon className="w-5 h-5 text-valve-blue shrink-0 mt-0.5" />
         <div className="flex-1">
-          {mode === "hid" ? <HidInstructions /> : <BootloaderInstructions />}
+          {mode === "hid" ? <HidInstructions /> : <BootloaderInstructions postReboot={!!postReboot} />}
         </div>
       </div>
 
@@ -56,7 +61,7 @@ function HidInstructions() {
   return (
     <div className="space-y-2.5 text-sm text-gray-300">
       <p>
-        When you click <strong>Continue</strong>, your browser will open a
+        When you click <strong>Continue</strong>, your browser may open a
         device picker. Your Valve device may appear as:
       </p>
       <ul className="list-disc pl-5 space-y-1.5 text-gray-200">
@@ -76,22 +81,43 @@ function HidInstructions() {
         </li>
       </ul>
       <p className="text-gray-500 text-xs">
-        Don't see it? Make sure it's plugged in or paired, then try again.
+        If this device has been paired before, the picker is skipped
+        automatically. Don't see it? Make sure it's plugged in or paired,
+        then try again.
       </p>
     </div>
   );
 }
 
-function BootloaderInstructions() {
+function BootloaderInstructions({ postReboot }: { postReboot: boolean }) {
+  if (postReboot) {
+    return (
+      <div className="space-y-2.5 text-sm text-gray-300">
+        <p>
+          Your device is rebooting into bootloader mode. Plug it into USB
+          now if it isn't already.
+        </p>
+        <p>
+          When you click <strong>Continue</strong>, your browser may open a
+          serial port picker. If it does, select{" "}
+          <strong>"Steam Controller Bootloader"</strong>. If this device's
+          bootloader has been paired before, the picker is skipped
+          automatically.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-2.5 text-sm text-gray-300">
       <p>
         If your device isn't already plugged in via USB, plug it in now.
       </p>
       <p>
-        When you click <strong>Continue</strong>, your browser will open a
-        serial port picker. Select{" "}
-        <strong>"Steam Controller Bootloader"</strong>.
+        When you click <strong>Continue</strong>, your browser may open a
+        serial port picker. If it does, select{" "}
+        <strong>"Steam Controller Bootloader"</strong>. If this device's
+        bootloader has been paired before, the picker is skipped
+        automatically.
       </p>
     </div>
   );

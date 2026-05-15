@@ -51,6 +51,7 @@ function ControllerChild({ controller, firmwareCatalog }: { controller: Connecte
       await runBootloaderPicker({
         deviceClass: DeviceClass.Triton,
         action: () => rebootControllerSlot(controller.device),
+        actionFirst: true,
       });
     } catch (e) {
       setRebootError(e instanceof Error ? e.message : String(e));
@@ -189,9 +190,11 @@ export function DeviceCard({
     setRebooting(true);
     try {
       const deviceClass = getDeviceClass(info.type);
+      const isWireless = info.type === DeviceType.TritonBLE || info.type === DeviceType.TritonESB;
       const confirmed = await runBootloaderPicker({
         deviceClass,
         action: () => rebootToBootloader(deviceClass, device.hid),
+        actionFirst: isWireless,
       });
       if (!confirmed) {
         // User cancelled the modal — nothing rebooted, drop the busy state.

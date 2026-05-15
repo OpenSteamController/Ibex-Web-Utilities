@@ -13,6 +13,12 @@ export interface BootloaderPickerOptions {
    *  the fast path. Omit when the only thing to do is bring up the
    *  picker (e.g., Connect Bootloader). */
   action?: () => Promise<unknown>;
+  /** When true, run the action *before* showing the instructional modal.
+   *  Use this when the connection that carries the command (BLE/ESB) is
+   *  separate from the USB port we'll need afterwards — there's no
+   *  reason to ask the user to plug in before the reboot has even left
+   *  for the device. */
+  actionFirst?: boolean;
 }
 
 interface PickerContextValue {
