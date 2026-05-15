@@ -1,20 +1,33 @@
-import type { BootloaderDevice } from "@lib/index.js";
+import type { BootloaderDevice, BootloaderPort } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
 import type { FirmwareCatalog } from "../firmware-catalog";
 import { DeviceCard } from "./DeviceCard";
 import { BootloaderCard } from "./BootloaderCard";
+import { PendingPuckCard } from "./PendingPuckCard";
 import { ControllerIcon } from "./Icons";
 
 interface DeviceListProps {
   devices: ConnectedDevice[];
   bootloaderDevices: BootloaderDevice[];
+  pendingPuckPorts: BootloaderPort[];
+  puckTimeoutMs: number;
+  onConnectPendingPuck: (bp: BootloaderPort) => Promise<void>;
   firmwareCatalog: FirmwareCatalog | null;
   onFlashComplete: () => void;
   onFlashingChange: (flashing: boolean) => void;
 }
 
-export function DeviceList({ devices, bootloaderDevices, firmwareCatalog, onFlashComplete, onFlashingChange }: DeviceListProps) {
-  if (devices.length === 0 && bootloaderDevices.length === 0) {
+export function DeviceList({
+  devices,
+  bootloaderDevices,
+  pendingPuckPorts,
+  puckTimeoutMs,
+  onConnectPendingPuck,
+  firmwareCatalog,
+  onFlashComplete,
+  onFlashingChange,
+}: DeviceListProps) {
+  if (devices.length === 0 && bootloaderDevices.length === 0 && pendingPuckPorts.length === 0) {
     return (
       <div className="max-w-lg mx-auto py-8" style={{ animation: "fade-in 0.3s ease-out" }}>
         <div className="text-center">
@@ -69,6 +82,14 @@ export function DeviceList({ devices, bootloaderDevices, firmwareCatalog, onFlas
       ))}
       {bootloaderDevices.map((dev, i) => (
         <BootloaderCard key={`bl-${i}`} device={dev} firmwareCatalog={firmwareCatalog} onFlashComplete={onFlashComplete} onFlashingChange={onFlashingChange} />
+      ))}
+      {pendingPuckPorts.map((p, i) => (
+        <PendingPuckCard
+          key={`pending-${i}`}
+          pending={p}
+          timeoutMs={puckTimeoutMs}
+          onConnect={onConnectPendingPuck}
+        />
       ))}
     </div>
   );

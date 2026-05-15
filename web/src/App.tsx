@@ -11,7 +11,7 @@ import {
   readAllAttributes,
   DeviceClass,
 } from "@lib/index.js";
-import type { ValveHidDevice, DeviceInfo, DeviceAttributes, ConnectedController, BootloaderDevice } from "@lib/index.js";
+import type { ValveHidDevice, DeviceInfo, DeviceAttributes, ConnectedController, BootloaderDevice, BootloaderPort } from "@lib/index.js";
 import { ConnectButton } from "./components/ConnectButton";
 import { DeviceList } from "./components/DeviceList";
 import { ErrorBanner } from "./components/ErrorBanner";
@@ -40,17 +40,51 @@ const HOTPLUG_DEBOUNCE_MS = 2000;
  *  Only need a brief delay since no USB re-enumeration happens. */
 const WIRELESS_DEBOUNCE_MS = 500;
 
+/** How long the Puck waits in bootloader mode before timing out to
+ *  firmware. We track pending Puck bootloader ports for this long so the
+ *  user can opt to talk to the bootloader before the timeout fires. */
+const PUCK_BOOTLOADER_TIMEOUT_MS = 3000;
+
 export function App() {
   const [devices, setDevices] = useState<Map<string, ConnectedDevice>>(new Map());
   const [bootloaderDevices, setBootloaderDevices] = useState<BootloaderDevice[]>([]);
+  const [pendingPuckPorts, setPendingPuckPorts] = useState<BootloaderPort[]>([]);
   const [firmwareCatalog, setFirmwareCatalog] = useState<FirmwareCatalog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashingRef = useRef(false);
+  /** Set true when the user clicks Connect Bootloader / Reboot to Bootloader.
+   *  Consumed by the next refreshDevices to skip the Puck hold-off, since
+   *  in that case the user actually wants to talk to the bootloader rather
+   *  than letting the Puck time out to firmware. */
+  const userInitiatedBootloaderRef = useRef(false);
+  /** Set while a bootloader reboot/picker flow is in progress. Blocks
+   *  refreshes (same pattern as flashingRef) so the hotplug events fired
+   *  by the device tearing itself down don't run a stale refresh in the
+   *  gap before it re-enumerates as the bootloader. After the flow ends
+   *  we trigger one explicit refresh that sees the full new state. */
+  const rebootingRef = useRef(false);
+  /** Per-pending-port timeout handles, keyed by SerialPort reference. */
+  const puckTimerRef = useRef<Map<SerialPort, ReturnType<typeof setTimeout>>>(new Map());
+  /** Mirror of `bootloaderDevices` so refreshDevices can read the latest
+   *  value synchronously (the useCallback closure captures a stale one). */
+  const bootloaderDevicesRef = useRef<BootloaderDevice[]>([]);
+
+  const setBootloaderDevicesSynced = useCallback(
+    (updater: BootloaderDevice[] | ((prev: BootloaderDevice[]) => BootloaderDevice[])) => {
+      setBootloaderDevices((prev) => {
+        const next = typeof updater === "function" ? (updater as (p: BootloaderDevice[]) => BootloaderDevice[])(prev) : updater;
+        bootloaderDevicesRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
 
   const refreshDevices = useCallback(async () => {
     if (flashingRef.current) return;
+    if (rebootingRef.current) return;
     try {
       const granted = await getGrantedHidDevices();
       const next = new Map<string, ConnectedDevice>();
@@ -82,19 +116,83 @@ export function App() {
       // WebHID may not be available
     }
 
-    // Scan for bootloader devices (Web Serial)
+    // Scan for bootloader devices (Web Serial).
+    const userInitiated = userInitiatedBootloaderRef.current;
+    userInitiatedBootloaderRef.current = false;
     try {
       const ports = await listGrantedBootloaderPorts();
-      const blDevices: BootloaderDevice[] = [];
-      for (const p of ports) {
+      const tritonPorts = ports.filter((p) => p.deviceClass === DeviceClass.Triton);
+      const puckPorts = ports.filter((p) => p.deviceClass === DeviceClass.Proteus);
+
+      // Triton bootloaders: connect immediately, no timeout to worry about.
+      const triton: BootloaderDevice[] = [];
+      for (const p of tritonPorts) {
         const d = await readBootloaderInfo(p);
-        if (d) blDevices.push(d);
+        if (d) triton.push(d);
       }
-      setBootloaderDevices(blDevices);
+
+      const puckPortSet = new Set(puckPorts.map((p) => p.port));
+      if (userInitiated) {
+        // Open all Puck bootloaders now — the user asked for it.
+        // Skip ones we already have connected to avoid redundant INFO reads.
+        const alreadyConnected = bootloaderDevicesRef.current.filter(
+          (d) => d.deviceClass === DeviceClass.Proteus && puckPortSet.has(d.port),
+        );
+        const alreadyConnectedSet = new Set(alreadyConnected.map((d) => d.port));
+        const newPuck: BootloaderDevice[] = [];
+        for (const p of puckPorts) {
+          if (alreadyConnectedSet.has(p.port)) continue;
+          const d = await readBootloaderInfo(p);
+          if (d) newPuck.push(d);
+        }
+        // Cancel any pending timers (now superseded) and clear pending state.
+        for (const t of puckTimerRef.current.values()) clearTimeout(t);
+        puckTimerRef.current.clear();
+        setPendingPuckPorts([]);
+        setBootloaderDevicesSynced([...triton, ...alreadyConnected, ...newPuck]);
+      } else {
+        // Auto-detect: hold off on *new* Puck ports (let them time out to
+        // firmware) but preserve any Puck bootloaders we're already
+        // connected to — a previous user-initiated refresh may have just
+        // opened them, and a stray hotplug refresh shouldn't undo that.
+        const keptPucks = bootloaderDevicesRef.current.filter(
+          (d) => d.deviceClass === DeviceClass.Proteus && puckPortSet.has(d.port),
+        );
+        const keptPuckSet = new Set(keptPucks.map((d) => d.port));
+        setBootloaderDevicesSynced([...triton, ...keptPucks]);
+        setPendingPuckPorts((prev) => {
+          // Preserve existing pending entries; add newly seen ports that
+          // aren't already connected.
+          const existing = new Set(prev.map((p) => p.port));
+          const next = [...prev];
+          for (const p of puckPorts) {
+            if (existing.has(p.port)) continue;
+            if (keptPuckSet.has(p.port)) continue;
+            next.push(p);
+            // Auto-drop after the Puck's bootloader timeout.
+            const timer = setTimeout(() => {
+              puckTimerRef.current.delete(p.port);
+              setPendingPuckPorts((cur) => cur.filter((x) => x.port !== p.port));
+            }, PUCK_BOOTLOADER_TIMEOUT_MS);
+            puckTimerRef.current.set(p.port, timer);
+          }
+          // Drop pending entries whose ports are no longer present.
+          return next.filter((p) => {
+            if (puckPortSet.has(p.port)) return true;
+            const t = puckTimerRef.current.get(p.port);
+            if (t) {
+              clearTimeout(t);
+              puckTimerRef.current.delete(p.port);
+            }
+            return false;
+          });
+        });
+      }
     } catch {
-      setBootloaderDevices([]);
+      setBootloaderDevicesSynced([]);
+      setPendingPuckPorts([]);
     }
-  }, []);
+  }, [setBootloaderDevicesSynced]);
 
   /** Lightweight refresh: only rescan controller slots and update
    *  existing dongle cards. Skips re-querying the dongle itself. */
@@ -136,8 +234,30 @@ export function App() {
     setWatchGeneration((g) => g + 1);
   }, [refreshDevices]);
 
-  // Initial load (no debounce)
+  /** User clicked "Connect to Bootloader" on a pending Puck card —
+   *  cancel its timer and open the port now. The pending entry stays
+   *  visible (in busy state) until the bootloader card is ready, so the
+   *  two state updates batch into one render with no visual gap. */
+  const connectPendingPuckPort = useCallback(async (bp: BootloaderPort) => {
+    const t = puckTimerRef.current.get(bp.port);
+    if (t) {
+      clearTimeout(t);
+      puckTimerRef.current.delete(bp.port);
+    }
+    const dev = await readBootloaderInfo(bp);
+    setPendingPuckPorts((prev) => prev.filter((x) => x.port !== bp.port));
+    if (dev) {
+      setBootloaderDevicesSynced((prev) => [...prev, dev]);
+    }
+  }, [setBootloaderDevicesSynced]);
+
+  // Initial load (no debounce). Treat any already-present Puck bootloader
+  // port as intentional — by the time the page loads, the Puck has either
+  // been in bootloader mode for a while (user held it there) or just
+  // entered it on plug-in but well before we could see the hotplug event.
+  // Either way, opening it now is safer than letting it time out.
   useEffect(() => {
+    userInitiatedBootloaderRef.current = true;
     refreshDevices();
   }, [refreshDevices]);
 
@@ -215,6 +335,10 @@ export function App() {
    *  the post-action refresh automatically. Otherwise we call
    *  navigator.serial.requestPort so the user can grant it.
    *
+   *  Background refreshes are paused (rebootingRef) while the device is
+   *  tearing down + re-enumerating, then a single explicit refresh fires
+   *  after the flow ends so the new state is captured in one pass.
+   *
    *  The paired check has to happen AFTER the action, because Web Serial
    *  getPorts() only returns currently-connected ports — and the
    *  bootloader port doesn't exist until the device has rebooted into
@@ -222,32 +346,54 @@ export function App() {
    *  re-enumerate. */
   const runBootloaderPicker = useCallback(
     async ({ deviceClass, action }: BootloaderPickerOptions) => {
+      userInitiatedBootloaderRef.current = true;
+
       const wrappedFn = async () => {
-        if (action) await action();
+        rebootingRef.current = true;
+        try {
+          if (action) await action();
 
-        if (deviceClass !== undefined) {
-          const POLL_DEADLINE = Date.now() + 2000;
-          while (Date.now() < POLL_DEADLINE) {
-            if (await findGrantedBootloaderPort(deviceClass)) {
-              // Already paired — skip the browser picker.
-              return;
+          if (deviceClass !== undefined) {
+            const POLL_DEADLINE = Date.now() + 2000;
+            while (Date.now() < POLL_DEADLINE) {
+              if (await findGrantedBootloaderPort(deviceClass)) {
+                // Already paired — skip the browser picker.
+                return;
+              }
+              await new Promise((r) => setTimeout(r, 100));
             }
-            await new Promise((r) => setTimeout(r, 100));
           }
-        }
 
-        await navigator.serial.requestPort({ filters: BOOTLOADER_PORT_FILTERS });
+          await navigator.serial.requestPort({ filters: BOOTLOADER_PORT_FILTERS });
+        } finally {
+          rebootingRef.current = false;
+        }
       };
-      return bootloaderPicker.run(wrappedFn);
+
+      const confirmed = await bootloaderPicker.run(wrappedFn);
+      if (confirmed) {
+        await refreshDevicesAndRewatch();
+      } else {
+        // User cancelled the modal — undo the flag so a stray refresh
+        // doesn't promote pending Pucks to connected.
+        userInitiatedBootloaderRef.current = false;
+      }
+      return confirmed;
     },
-    [bootloaderPicker],
+    [bootloaderPicker, refreshDevicesAndRewatch],
   );
 
   const handleConnect = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      await hidPicker.run(() => requestHidDevice());
+      const confirmed = await hidPicker.run(() => requestHidDevice());
+      if (confirmed) {
+        // The user clicked a connect button — treat any pending Puck
+        // bootloader ports as intentional and open them now instead of
+        // letting them time out to firmware.
+        userInitiatedBootloaderRef.current = true;
+      }
       await refreshDevicesAndRewatch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -261,15 +407,15 @@ export function App() {
     setError(null);
     try {
       // No deviceClass — could be either Triton or Puck bootloader, so
-      // always show the picker.
+      // always show the picker. runBootloaderPicker handles the gating
+      // and post-action refresh itself.
       await runBootloaderPicker({});
-      await refreshDevicesAndRewatch();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [runBootloaderPicker, refreshDevicesAndRewatch]);
+  }, [runBootloaderPicker]);
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-gray-100">
@@ -305,6 +451,9 @@ export function App() {
           <DeviceList
             devices={Array.from(devices.values())}
             bootloaderDevices={bootloaderDevices}
+            pendingPuckPorts={pendingPuckPorts}
+            puckTimeoutMs={PUCK_BOOTLOADER_TIMEOUT_MS}
+            onConnectPendingPuck={connectPendingPuckPort}
             firmwareCatalog={firmwareCatalog}
             onFlashComplete={refreshDevicesAndRewatch}
             onFlashingChange={(v) => { flashingRef.current = v; }}
