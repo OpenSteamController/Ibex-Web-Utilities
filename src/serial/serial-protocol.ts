@@ -12,6 +12,12 @@ import { debug } from "../debug.js";
 import { encodeMessage, decodeMessage } from "./serial-framing.js";
 import { writeBytes, readUntilEof } from "./serial-transport.js";
 
+/** INFO response layout: 36-byte header (bootloader timestamp + installed-firmware
+ *  metadata) followed by a 128-byte provisioning block (magic, hwid, serials). */
+const INFO_HEADER_BYTES = 36;
+const PROVISIONING_BYTES = 128;
+const INFO_RESPONSE_BYTES = INFO_HEADER_BYTES + PROVISIONING_BYTES;
+
 function packU16LE(value: number): Uint8Array {
   const buf = new Uint8Array(2);
   new DataView(buf.buffer).setUint16(0, value, true);
@@ -59,14 +65,14 @@ export async function getBootloaderInfo(
   const msg = packU16LE(MESSAGE_INFO);
   const rsp = await sendAndExpectAck(transport, msg);
 
-  if (rsp.length !== 164) {
+  if (rsp.length !== INFO_RESPONSE_BYTES) {
     throw new ProtocolError(
-      `Bad INFO response length: expected 164, got ${rsp.length}`,
+      `Bad INFO response length: expected ${INFO_RESPONSE_BYTES}, got ${rsp.length}`,
     );
   }
 
-  // Header: bootloader metadata (bytes 0-35)
-  const hdrView = new DataView(rsp.buffer, rsp.byteOffset, 36);
+  // Header: bootloader metadata (bytes 0 .. INFO_HEADER_BYTES-1)
+  const hdrView = new DataView(rsp.buffer, rsp.byteOffset, INFO_HEADER_BYTES);
   const bootBuildTimestamp = hdrView.getUint32(0, true);
   const installedFwMagic = hdrView.getUint32(4, true);
   const installedFwSize = hdrView.getUint32(8, true);
@@ -74,8 +80,8 @@ export async function getBootloaderInfo(
 
   debug(`bootloaderInfo: bootBL=${bootBuildTimestamp.toString(16).toUpperCase()} fwMagic=${installedFwMagic.toString(16).toUpperCase()} fwSize=${installedFwSize} fwCRC=${installedFwChecksum.toString(16).toUpperCase()}`);
 
-  // Provisioning data starts at offset 36
-  const prov = rsp.subarray(36);
+  // Provisioning block starts after the header
+  const prov = rsp.subarray(INFO_HEADER_BYTES);
   const provView = new DataView(
     prov.buffer,
     prov.byteOffset,

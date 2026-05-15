@@ -62,7 +62,7 @@ The web app imports the library source directly via `@lib` path alias (resolves 
 
 ## Web App Patterns
 
-**Debounced hotplug:** USB connect/disconnect debounced 2s (multi-interface devices enumerate one at a time). Wireless connect/disconnect debounced 500ms.
+**Debounced hotplug:** USB connect/disconnect debounced 500ms (multi-interface devices enumerate one at a time). Wireless connect/disconnect debounced 500ms.
 
 **Refresh hierarchy:** `refreshDevices()` = full HID + serial scan. `refreshControllers()` = lightweight controller slot rescan only (no dongle re-query). Wireless events use the lightweight path.
 

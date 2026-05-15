@@ -66,6 +66,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Set while a firmware flash is in progress. Blocks refreshDevices so a
+   *  hotplug event (e.g. another interface settling) doesn't tear down and
+   *  re-open transports mid-flash. Cleared in the finally of the flash flow. */
   const flashingRef = useRef(false);
   /** Set true when the user clicks Connect Bootloader / Reboot to Bootloader.
    *  Consumed by the next refreshDevices to skip the Puck hold-off, since

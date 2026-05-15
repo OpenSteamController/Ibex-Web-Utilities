@@ -38,7 +38,13 @@ function getAllHidFilters(): HIDDeviceFilter[] {
  * Detect bcdVersion by probing report ID 2 with a numeric attribute read.
  * If report ID 2 returns a valid response (reportType matches the opcode),
  * the device is v2. Otherwise it's v1.
- * Only relevant for dongle devices (Proteus/Nereid).
+ *
+ * Numeric attrs are encoded as 5-byte records (u8 tag + u32 LE value), so a
+ * valid v2 response has length divisible by 5; that's what we check rather
+ * than parsing the payload during discovery.
+ *
+ * Only relevant for dongle devices (Proteus/Nereid) — Triton firmware is
+ * always v1-style and we don't probe it.
  */
 async function detectBcdVersion(device: HIDDevice): Promise<number> {
   debug("detectBcdVersion: probing report ID 2...");
@@ -265,7 +271,9 @@ export async function getConnectedControllers(): Promise<ConnectedController[]> 
     slotIndex++;
     await openHidDevice(device);
 
-    // Controller slots always use report ID 1 for the connected Triton
+    // Controller slot interfaces tunnel to a wirelessly-connected Triton.
+    // Triton firmware only speaks v1-style protocol on report ID 1, regardless
+    // of the dongle's own bcdVersion — so we always read from report ID 1 here.
     const serial = await readSerialRaw(device, 1, OPCODE_GET_STRING_ATTR);
     if (!serial) {
       debug(`getConnectedControllers: slot ${slotIndex} empty`);

@@ -123,6 +123,9 @@ async function getNumericAttributes(
 /**
  * Get serial number for a Triton-class device.
  * Always uses reportId=1, opcode=0xAE, attribute 1.
+ *
+ * Triton firmware ships in only one protocol flavor (v1-style on report ID 1),
+ * so there's no bcdVersion branch here — unlike the dongle variants below.
  */
 export async function getTritonSerial(
   dev: ValveHidDevice,
@@ -134,6 +137,10 @@ export async function getTritonSerial(
  * Get serial number for a dongle device (Proteus/Nereid).
  * v2 (bcdVersion=2): reportId=2, opcode=0xAE
  * v1: reportId=1, opcode=0xA4
+ *
+ * Dongles exist in two firmware variants: older v1 firmware uses v1 opcodes
+ * on report ID 1, newer v2 firmware uses standard opcodes on report ID 2.
+ * The bcdVersion is determined at discovery time (see detectBcdVersion).
  */
 export async function getDongleSerial(
   dev: ValveHidDevice,
