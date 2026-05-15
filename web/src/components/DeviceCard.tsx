@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { DeviceType, DeviceClass, rebootToBootloader, getDeviceClass } from "@lib/index.js";
+import {
+  DeviceType,
+  DeviceClass,
+  rebootToBootloader,
+  rebootControllerSlot,
+  getDeviceClass,
+} from "@lib/index.js";
 import type { ConnectedController, DeviceAttributes } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
 import { ExtraAttributes } from "./DeviceAttributes";
@@ -14,6 +20,8 @@ import {
   SpinnerIcon,
   WirelessIcon,
 } from "./Icons";
+import { usePicker } from "../picker-context";
+import { BOOTLOADER_PORT_FILTERS } from "../serial-filter";
 import styles from "./DeviceCard.module.sass";
 
 function connectionChip(type: DeviceType): { label: string; variant: "usb" | "ble" | "esb" } {
@@ -28,6 +36,25 @@ function connectionChip(type: DeviceType): { label: string; variant: "usb" | "bl
 }
 
 function ControllerChild({ controller }: { controller: ConnectedController }) {
+  const { runBootloaderPicker } = usePicker();
+  const [rebooting, setRebooting] = useState(false);
+  const [rebootError, setRebootError] = useState<string | null>(null);
+
+  const handleReboot = async () => {
+    setRebootError(null);
+    setRebooting(true);
+    try {
+      await runBootloaderPicker(async () => {
+        await rebootControllerSlot(controller.device);
+        await navigator.serial.requestPort({ filters: BOOTLOADER_PORT_FILTERS });
+      });
+    } catch (e) {
+      setRebootError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRebooting(false);
+    }
+  };
+
   return (
     <div className={styles.wirelessChild}>
       <div className="flex items-center gap-2 mb-2">
@@ -36,9 +63,10 @@ function ControllerChild({ controller }: { controller: ConnectedController }) {
           <span className={styles.dot} />
         </span>
         <WirelessIcon className="w-3.5 h-3.5 text-accent-wireless" />
-        <h3 className="text-sm font-medium text-accent-wireless">
+        <h3 className="text-sm font-medium text-accent-wireless flex-1">
           Steam Controller — Slot {controller.slot}
         </h3>
+        <span className={`${styles.badge} ${styles.esb} ${styles.small}`}>ESB</span>
       </div>
       <dl className={`${styles.infoList} text-xs`}>
         <div className="flex justify-between">
@@ -72,6 +100,29 @@ function ControllerChild({ controller }: { controller: ConnectedController }) {
           </div>
         )}
       </dl>
+
+      <div className="mt-2">
+        {rebootError && (
+          <p className="text-xs text-red-400 mb-1.5">{rebootError}</p>
+        )}
+        <button
+          onClick={handleReboot}
+          disabled={rebooting}
+          className={`${styles.rebootButton} ${styles.small}`}
+        >
+          {rebooting ? (
+            <>
+              <SpinnerIcon className="h-3 w-3" />
+              Rebooting...
+            </>
+          ) : (
+            <>
+              <RebootIcon className="w-3 h-3" />
+              Reboot to Bootloader
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -92,6 +143,7 @@ export function DeviceCard({ device }: DeviceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [rebootError, setRebootError] = useState<string | null>(null);
+  const { runBootloaderPicker } = usePicker();
   const { info, attrs, connectedControllers } = device;
 
   const isPuck = info.deviceClass === DeviceClass.Proteus;
@@ -104,8 +156,16 @@ export function DeviceCard({ device }: DeviceCardProps) {
     setRebooting(true);
     try {
       const deviceClass = getDeviceClass(info.type);
-      await rebootToBootloader(deviceClass, device.hid);
-      // Stay in "Rebooting..." state — the card unmounts when the device disconnects.
+      const confirmed = await runBootloaderPicker(async () => {
+        await rebootToBootloader(deviceClass, device.hid);
+        await navigator.serial.requestPort({ filters: BOOTLOADER_PORT_FILTERS });
+      });
+      if (!confirmed) {
+        // User cancelled the modal — nothing rebooted, drop the busy state.
+        setRebooting(false);
+      }
+      // If confirmed, stay in "Rebooting..." — the card unmounts when the
+      // device disconnects.
     } catch (e) {
       setRebootError(e instanceof Error ? e.message : String(e));
       setRebooting(false);

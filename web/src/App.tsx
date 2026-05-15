@@ -5,11 +5,9 @@ import {
   getConnectedControllers,
   listGrantedBootloaderPorts,
   readBootloaderInfo,
-  requestSerialPort,
   watchControllerSlots,
   getDeviceInfo,
   readAllAttributes,
-  UserCancelledError,
   DeviceClass,
 } from "@lib/index.js";
 import type { ValveHidDevice, DeviceInfo, DeviceAttributes, ConnectedController, BootloaderDevice } from "@lib/index.js";
@@ -17,7 +15,11 @@ import { ConnectButton } from "./components/ConnectButton";
 import { DeviceList } from "./components/DeviceList";
 import { ErrorBanner } from "./components/ErrorBanner";
 import { DebugPanel } from "./components/DebugPanel";
+import { PickerInstructionsModal } from "./components/PickerInstructionsModal";
 import { GitHubIcon } from "./components/Icons";
+import { usePickerFlow } from "./hooks/usePickerFlow";
+import { PickerProvider } from "./picker-context";
+import { BOOTLOADER_PORT_FILTERS } from "./serial-filter";
 import { fetchFirmwareCatalog } from "./firmware-catalog";
 import type { FirmwareCatalog } from "./firmware-catalog";
 
@@ -202,41 +204,43 @@ export function App() {
     };
   }, [scheduleCallback, refreshControllers, watchGeneration]);
 
+  const hidPicker = usePickerFlow();
+  const bootloaderPicker = usePickerFlow();
+
+  const runBootloaderPicker = useCallback(
+    (fn: () => Promise<unknown>) => bootloaderPicker.run(fn),
+    [bootloaderPicker],
+  );
+
   const handleConnect = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      await requestHidDevice();
+      await hidPicker.run(() => requestHidDevice());
       await refreshDevicesAndRewatch();
     } catch (e) {
-      if (e instanceof UserCancelledError) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [refreshDevicesAndRewatch]);
+  }, [hidPicker, refreshDevicesAndRewatch]);
 
   const handleConnectBootloader = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // requestSerialPort needs a device class, but we don't know which
-      // one the user has. Use a raw requestPort with both PID filters.
-      await navigator.serial.requestPort({
-        filters: [
-          { usbVendorId: 0x28de, usbProductId: 0x1005 },
-          { usbVendorId: 0x28de, usbProductId: 0x1007 },
-        ],
-      });
+      // No deviceClass — could be either Triton or Puck bootloader, so
+      // always show the picker.
+      await runBootloaderPicker(() =>
+        navigator.serial.requestPort({ filters: BOOTLOADER_PORT_FILTERS }),
+      );
       await refreshDevicesAndRewatch();
     } catch (e) {
-      if (e instanceof DOMException && e.name === "NotFoundError") return;
-      if (e instanceof UserCancelledError) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [refreshDevicesAndRewatch]);
+  }, [runBootloaderPicker, refreshDevicesAndRewatch]);
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-gray-100">
@@ -268,13 +272,15 @@ export function App() {
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <main className="flex-1 p-6">
-        <DeviceList
-          devices={Array.from(devices.values())}
-          bootloaderDevices={bootloaderDevices}
-          firmwareCatalog={firmwareCatalog}
-          onFlashComplete={refreshDevicesAndRewatch}
-          onFlashingChange={(v) => { flashingRef.current = v; }}
-        />
+        <PickerProvider value={{ runBootloaderPicker }}>
+          <DeviceList
+            devices={Array.from(devices.values())}
+            bootloaderDevices={bootloaderDevices}
+            firmwareCatalog={firmwareCatalog}
+            onFlashComplete={refreshDevicesAndRewatch}
+            onFlashingChange={(v) => { flashingRef.current = v; }}
+          />
+        </PickerProvider>
       </main>
 
       <DebugPanel />
@@ -291,6 +297,21 @@ export function App() {
           <GitHubIcon className="w-5 h-5" />
         </a>
       </footer>
+
+      <PickerInstructionsModal
+        isOpen={hidPicker.open}
+        mode="hid"
+        busy={hidPicker.busy}
+        onContinue={hidPicker.confirm}
+        onCancel={hidPicker.cancel}
+      />
+      <PickerInstructionsModal
+        isOpen={bootloaderPicker.open}
+        mode="bootloader"
+        busy={bootloaderPicker.busy}
+        onContinue={bootloaderPicker.confirm}
+        onCancel={bootloaderPicker.cancel}
+      />
     </div>
   );
 }
