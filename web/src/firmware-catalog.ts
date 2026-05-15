@@ -1,6 +1,15 @@
 export const FIRMWARE_CATALOG_URL =
   "https://opensteamcontroller.github.io/Ibex-Firmware/index.json";
 
+export type FirmwareChannel = "stable" | "publicbeta";
+export type FirmwareCategory = "controller" | "puck";
+
+export interface FirmwareFirstSeenEntry {
+  commit: string;
+  date: string;
+  steam_version?: string;
+}
+
 export interface FirmwareEntry {
   version_hex: string;
   version_unix: number;
@@ -8,10 +17,11 @@ export interface FirmwareEntry {
   sha256: string;
   file_size: number;
   payload_size: number;
+  first_seen?: Partial<Record<FirmwareChannel, FirmwareFirstSeenEntry>>;
 }
 
 export interface CrcIndexEntry {
-  category: "controller" | "puck";
+  category: FirmwareCategory;
   path: string;
   version_hex: string;
 }
@@ -37,4 +47,24 @@ export function lookupFirmwareByCrc(
 ): CrcIndexEntry | null {
   const key = (crc32 >>> 0).toString(16).padStart(8, "0").toLowerCase();
   return catalog.crc32_index[key] ?? null;
+}
+
+export type LatestFirmwareVersions = Partial<Record<FirmwareChannel, FirmwareEntry>>;
+
+export function getLatestFirmware(
+  catalog: FirmwareCatalog,
+  category: FirmwareCategory,
+): LatestFirmwareVersions {
+  const out: LatestFirmwareVersions = {};
+  for (const entry of Object.values(catalog[category])) {
+    const channels = entry.first_seen;
+    if (!channels) continue;
+    for (const channel of Object.keys(channels) as FirmwareChannel[]) {
+      const current = out[channel];
+      if (!current || entry.version_unix > current.version_unix) {
+        out[channel] = entry;
+      }
+    }
+  }
+  return out;
 }

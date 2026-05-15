@@ -80,7 +80,7 @@ export function DeviceList({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {devices.map((dev, i) => (
-        <DeviceCard key={`hid-${i}`} device={dev} />
+        <DeviceCard key={`hid-${i}`} device={dev} firmwareCatalog={firmwareCatalog} />
       ))}
       {bootloaderDevices.map((dev, i) => (
         <BootloaderCard key={`bl-${i}`} device={dev} firmwareCatalog={firmwareCatalog} onFlashComplete={onFlashComplete} onFlashingChange={onFlashingChange} onExitBootloader={onExitBootloader} />

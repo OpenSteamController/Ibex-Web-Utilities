@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { DeviceType } from "@lib/index.js";
 import { TRITON_FW_MAGIC, PROTEUS_FW_MAGIC } from "@lib/constants.js";
 import type { BootloaderDevice } from "@lib/index.js";
-import type { FirmwareCatalog } from "../firmware-catalog";
+import type { FirmwareCatalog, FirmwareCategory } from "../firmware-catalog";
 import { lookupFirmwareByCrc } from "../firmware-catalog";
 import { TimestampValue } from "./TimestampValue";
+import { FirmwareUpdateBadge } from "./FirmwareUpdateBadge";
 import { BootloaderIcon, HashIcon, FirmwareIcon, SerialIcon, FlashIcon, RebootIcon, SpinnerIcon } from "./Icons";
 import { FlashWizard } from "./FlashWizard";
 import styles from "./BootloaderCard.module.sass";
@@ -38,6 +39,10 @@ export function BootloaderCard({ device, firmwareCatalog, onFlashComplete, onFla
   const { info, deviceType, lastInfoAt } = device;
   const catalogEntry = firmwareCatalog
     ? lookupFirmwareByCrc(firmwareCatalog, info.installedFwChecksum)
+    : null;
+  const installedCategory: FirmwareCategory | null =
+    info.installedFwMagic === TRITON_FW_MAGIC ? "controller"
+    : info.installedFwMagic === PROTEUS_FW_MAGIC ? "puck"
     : null;
 
   useEffect(() => {
@@ -133,10 +138,19 @@ export function BootloaderCard({ device, firmwareCatalog, onFlashComplete, onFla
                 <dd className="font-mono text-gray-200 text-xs">{fwMagicName(info.installedFwMagic)}</dd>
               </div>
               {firmwareCatalog && (
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <dt className="text-gray-400">Firmware</dt>
                   {catalogEntry ? (
-                    <TimestampValue ts={parseInt(catalogEntry.version_hex, 16)} />
+                    <div className="flex items-center gap-1.5">
+                      {installedCategory && (
+                        <FirmwareUpdateBadge
+                          current={parseInt(catalogEntry.version_hex, 16)}
+                          category={installedCategory}
+                          catalog={firmwareCatalog}
+                        />
+                      )}
+                      <TimestampValue ts={parseInt(catalogEntry.version_hex, 16)} />
+                    </div>
                   ) : (
                     <dd className="font-mono text-gray-500">Unrecognized</dd>
                   )}

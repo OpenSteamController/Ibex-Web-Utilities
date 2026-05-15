@@ -8,8 +8,10 @@ import {
 } from "@lib/index.js";
 import type { ConnectedController, DeviceAttributes } from "@lib/index.js";
 import type { ConnectedDevice } from "../App";
+import type { FirmwareCatalog } from "../firmware-catalog";
 import { ExtraAttributes } from "./DeviceAttributes";
 import { TimestampValue } from "./TimestampValue";
+import { FirmwareUpdateBadge } from "./FirmwareUpdateBadge";
 import {
   ControllerIcon,
   PuckIcon,
@@ -34,7 +36,7 @@ function connectionChip(type: DeviceType): { label: string; variant: "usb" | "bl
   }
 }
 
-function ControllerChild({ controller }: { controller: ConnectedController }) {
+function ControllerChild({ controller, firmwareCatalog }: { controller: ConnectedController; firmwareCatalog: FirmwareCatalog | null }) {
   const { runBootloaderPicker } = usePicker();
   const [expanded, setExpanded] = useState(false);
   const [rebooting, setRebooting] = useState(false);
@@ -85,9 +87,16 @@ function ControllerChild({ controller }: { controller: ConnectedController }) {
             <dt className="text-gray-400">Hardware ID</dt>
             <dd className="font-mono">0x{controller.hardwareId.toString(16).toUpperCase()}</dd>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <dt className="text-gray-400">Firmware Version</dt>
-            <TimestampValue ts={controller.buildTimestamp} />
+            <div className="flex items-center gap-1.5">
+              <FirmwareUpdateBadge
+                current={controller.buildTimestamp}
+                category="controller"
+                catalog={firmwareCatalog}
+              />
+              <TimestampValue ts={controller.buildTimestamp} />
+            </div>
           </div>
           {controller.bootBuildTimestamp !== 0 && (
             <div className="flex justify-between">
@@ -146,9 +155,10 @@ const PROMOTED_KEYS = new Set([
 
 interface DeviceCardProps {
   device: ConnectedDevice;
+  firmwareCatalog: FirmwareCatalog | null;
 }
 
-export function DeviceCard({ device }: DeviceCardProps) {
+export function DeviceCard({ device, firmwareCatalog }: DeviceCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [rebooting, setRebooting] = useState(false);
   const [rebootError, setRebootError] = useState<string | null>(null);
@@ -217,7 +227,14 @@ export function DeviceCard({ device }: DeviceCardProps) {
               <FirmwareIcon className="w-3.5 h-3.5" />
               Firmware
             </dt>
-            <TimestampValue ts={info.buildTimestamp} />
+            <div className="flex items-center gap-1.5">
+              <FirmwareUpdateBadge
+                current={info.buildTimestamp}
+                category={isPuck ? "puck" : "controller"}
+                catalog={firmwareCatalog}
+              />
+              <TimestampValue ts={info.buildTimestamp} />
+            </div>
           </div>
           {attrs?.bootBuildTimestamp != null && (
             <div className="flex items-center justify-between">
@@ -270,7 +287,7 @@ export function DeviceCard({ device }: DeviceCardProps) {
             </p>
             <div className="space-y-2">
               {connectedControllers.map((c) => (
-                <ControllerChild key={c.serialNumber} controller={c} />
+                <ControllerChild key={c.serialNumber} controller={c} firmwareCatalog={firmwareCatalog} />
               ))}
             </div>
           </div>
