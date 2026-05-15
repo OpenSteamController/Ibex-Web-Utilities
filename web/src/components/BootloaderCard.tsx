@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DeviceTypeNames } from "@lib/index.js";
+import { DeviceType } from "@lib/index.js";
 import { TRITON_FW_MAGIC, PROTEUS_FW_MAGIC } from "@lib/constants.js";
 import type { BootloaderDevice } from "@lib/index.js";
 import type { FirmwareCatalog } from "../firmware-catalog";
@@ -13,6 +13,10 @@ function fwMagicName(magic: number): string {
   if (magic === TRITON_FW_MAGIC) return "IBEX";
   if (magic === PROTEUS_FW_MAGIC) return "PROTEUS";
   return `Unknown (0x${magic.toString(16).toUpperCase()})`;
+}
+
+function bootloaderTitle(t: DeviceType): string {
+  return t === DeviceType.TritonBootloader ? "Steam Controller" : "Steam Controller Puck";
 }
 
 interface BootloaderCardProps {
@@ -39,7 +43,7 @@ export function BootloaderCard({ device, firmwareCatalog, onFlashComplete, onFla
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-gray-100 truncate">
-              {DeviceTypeNames[deviceType]}
+              {bootloaderTitle(deviceType)}
             </h2>
             <p className="text-xs text-gray-500 font-mono">{info.unitSerial}</p>
           </div>
