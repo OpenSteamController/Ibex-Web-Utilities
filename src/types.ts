@@ -73,6 +73,7 @@ export interface ConnectedController {
   bootBuildTimestamp: number;
   productId: number;
   capabilities: number;
+  device: HIDDevice;
 }
 
 export interface BootloaderInfo {

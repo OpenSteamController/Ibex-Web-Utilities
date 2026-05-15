@@ -217,6 +217,15 @@ export async function rebootToBootloader(
 }
 
 /**
+ * Reboot a wirelessly-connected controller (via its Puck slot interface)
+ * into bootloader mode. The controller stops responding on ESB and must
+ * be plugged in via USB to receive the firmware update.
+ */
+export async function rebootControllerSlot(slot: HIDDevice): Promise<void> {
+  await sendFeatureReport(slot, 1, new Uint8Array([OPCODE_REBOOT_TO_BL]));
+}
+
+/**
  * Normal reboot (Triton only).
  */
 export async function reboot(dev: ValveHidDevice): Promise<void> {

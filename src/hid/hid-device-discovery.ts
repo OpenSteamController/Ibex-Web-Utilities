@@ -288,6 +288,7 @@ export async function getConnectedControllers(): Promise<ConnectedController[]> 
       bootBuildTimestamp: attrs?.bootBuildTimestamp ?? 0,
       productId: attrs?.productId ?? 0,
       capabilities: attrs?.capabilities ?? 0,
+      device,
     });
   }
 

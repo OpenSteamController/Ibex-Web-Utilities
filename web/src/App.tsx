@@ -3,7 +3,8 @@ import {
   requestHidDevice,
   getGrantedHidDevices,
   getConnectedControllers,
-  getGrantedBootloaderDevices,
+  listGrantedBootloaderPorts,
+  readBootloaderInfo,
   requestSerialPort,
   watchControllerSlots,
   getDeviceInfo,
@@ -79,7 +80,12 @@ export function App() {
 
     // Scan for bootloader devices (Web Serial)
     try {
-      const blDevices = await getGrantedBootloaderDevices();
+      const ports = await listGrantedBootloaderPorts();
+      const blDevices: BootloaderDevice[] = [];
+      for (const p of ports) {
+        const d = await readBootloaderInfo(p);
+        if (d) blDevices.push(d);
+      }
       setBootloaderDevices(blDevices);
     } catch {
       setBootloaderDevices([]);

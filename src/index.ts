@@ -27,8 +27,12 @@ export {
   watchInputReports,
 } from "./hid/hid-device-discovery.js";
 export { requestSerialPort } from "./serial/serial-transport.js";
-export type { BootloaderDevice } from "./serial/serial-discovery.js";
-export { getGrantedBootloaderDevices } from "./serial/serial-discovery.js";
+export type { BootloaderDevice, BootloaderPort } from "./serial/serial-discovery.js";
+export {
+  listGrantedBootloaderPorts,
+  findGrantedBootloaderPort,
+  readBootloaderInfo,
+} from "./serial/serial-discovery.js";
 
 // Device info
 export {
@@ -55,6 +59,7 @@ export {
   getDongleBuildInfo,
   readAllAttributes,
   rebootToBootloader,
+  rebootControllerSlot,
   reboot,
 } from "./hid/hid-protocol.js";
 
