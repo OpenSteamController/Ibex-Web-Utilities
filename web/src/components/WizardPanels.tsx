@@ -44,11 +44,11 @@ export function FlashProgressView({
 export function WarningPanel({ children }: { children: ReactNode }) {
   return (
     <div className={styles.warningBox}>
-      <div className="flex items-start gap-2">
-        <WarningIcon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-        <div className="text-sm text-gray-300">
-          <p className="font-medium text-amber-400 mb-2">Warning: Proceed at your own risk</p>
-          <ul className="space-y-1 text-xs text-gray-400 list-disc list-inside">
+      <div className="flex items-start gap-3">
+        <WarningIcon className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+        <div className="text-sm text-gray-200">
+          <p className="font-semibold text-amber-300 text-base mb-2">Warning: Proceed at your own risk</p>
+          <ul className="space-y-1.5 text-sm text-gray-200 list-disc list-inside">
             {children}
           </ul>
         </div>
