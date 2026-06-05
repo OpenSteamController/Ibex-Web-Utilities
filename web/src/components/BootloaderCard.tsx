@@ -177,7 +177,7 @@ export function BootloaderCard({ device }: BootloaderCardProps) {
           )}
           <div className="flex items-center gap-2">
             <button
-              className={shiftHeld ? styles.flashButtonDanger : styles.flashButton}
+              className={shiftHeld || !firmwareCatalog ? styles.flashButtonDanger : styles.flashButton}
               onClick={(e) => {
                 const useFile = e.shiftKey || !firmwareCatalog;
                 setWizardMode(useFile ? "file" : "catalog");
@@ -186,7 +186,7 @@ export function BootloaderCard({ device }: BootloaderCardProps) {
               disabled={exiting}
             >
               <FlashIcon className="w-3.5 h-3.5" />
-              {shiftHeld ? "Flash Firmware from File" : "Flash Firmware"}
+              {shiftHeld || !firmwareCatalog ? "Flash Firmware from File" : "Flash Firmware"}
             </button>
             <button
               className={styles.exitButton}
@@ -206,6 +206,11 @@ export function BootloaderCard({ device }: BootloaderCardProps) {
               )}
             </button>
           </div>
+          {firmwareCatalog && (
+            <p className="text-xs text-gray-500 mt-2">
+              Shift + click Flash Firmware to flash from a file instead.
+            </p>
+          )}
         </div>
       </div>
 
