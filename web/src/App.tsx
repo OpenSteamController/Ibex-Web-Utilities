@@ -18,13 +18,15 @@ import type { ValveHidDevice, DeviceInfo, DeviceAttributes, ConnectedController,
 import { ConnectButton } from "./components/ConnectButton";
 import { DeviceList } from "./components/DeviceList";
 import { UpdateWizard, deviceKey } from "./components/UpdateWizard";
-import { ErrorBanner } from "./components/ErrorBanner";
 import { DebugPanel } from "./components/DebugPanel";
 import { PickerInstructionsModal } from "./components/PickerInstructionsModal";
 import { GitHubIcon } from "./components/Icons";
 import { usePickerFlow } from "./hooks/usePickerFlow";
 import { PickerProvider, type BootloaderPickerOptions } from "./picker-context";
 import { DeviceCardsProvider } from "./device-cards-context";
+import { useNotifications } from "./notifications-context";
+import { useDeviceChangeNotifications } from "./hooks/useDeviceChangeNotifications";
+import { usePendingPuckNotifications } from "./hooks/usePendingPuckNotifications";
 import { BOOTLOADER_PORT_FILTERS } from "./serial-filter";
 import { fetchFirmwareCatalog } from "./firmware-catalog";
 import type { FirmwareCatalog, FirmwareChannel } from "./firmware-catalog";
@@ -80,8 +82,9 @@ export function App() {
     },
     [],
   );
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { notify, dismiss } = useNotifications();
+  useDeviceChangeNotifications(devices, bootloaderDevices, notify);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Set while a firmware flash is in progress. Blocks refreshDevices so a
    *  hotplug event (e.g. another interface settling) doesn't tear down and
@@ -100,6 +103,17 @@ export function App() {
   const rebootingRef = useRef(false);
   /** Per-pending-port timeout handles, keyed by SerialPort reference. */
   const puckTimerRef = useRef<Map<SerialPort, ReturnType<typeof setTimeout>>>(new Map());
+  /** Pending Puck ports the user has chosen to connect (vs. letting them time
+   *  out). Lets the pending-puck notifier dismiss the card silently on connect
+   *  instead of announcing a window-closed event. */
+  const promotedPuckPortsRef = useRef<Set<SerialPort>>(new Set());
+  usePendingPuckNotifications(
+    pendingPuckPorts,
+    promotedPuckPortsRef,
+    PUCK_BOOTLOADER_TIMEOUT_MS,
+    notify,
+    dismiss,
+  );
   /** Mirror of `bootloaderDevices` so refreshDevices can read the latest
    *  value synchronously (the useCallback closure captures a stale one). */
   const bootloaderDevicesRef = useRef<BootloaderDevice[]>([]);
@@ -280,6 +294,9 @@ export function App() {
    *  visible (in busy state) until the bootloader card is ready, so the
    *  two state updates batch into one render with no visual gap. */
   const connectPendingPuckPort = useCallback(async (bp: BootloaderPort) => {
+    // Mark as promoted so the pending-puck notifier dismisses its card quietly
+    // rather than reporting a timeout when this port leaves the pending list.
+    promotedPuckPortsRef.current.add(bp.port);
     const t = puckTimerRef.current.get(bp.port);
     if (t) {
       clearTimeout(t);
@@ -308,9 +325,14 @@ export function App() {
       .then(setFirmwareCatalog)
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(`Failed to load firmware catalog: ${msg}`);
+        notify({
+          variant: "error",
+          title: "Failed to load firmware catalog",
+          lines: [msg],
+          durationMs: null,
+        });
       });
-  }, []);
+  }, [notify]);
 
   // Listen for USB device connect/disconnect.
   // HID is debounced because the Puck's 5 HID interfaces enumerate one at
@@ -443,7 +465,6 @@ export function App() {
 
   const handleConnect = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const confirmed = await hidPicker.run(() => requestHidDevice());
       if (confirmed) {
@@ -454,26 +475,35 @@ export function App() {
       }
       await refreshDevicesAndRewatch();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      notify({
+        variant: "error",
+        title: "Couldn't connect to device",
+        lines: [e instanceof Error ? e.message : String(e)],
+        durationMs: null,
+      });
     } finally {
       setLoading(false);
     }
-  }, [hidPicker, refreshDevicesAndRewatch]);
+  }, [hidPicker, refreshDevicesAndRewatch, notify]);
 
   const handleConnectBootloader = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       // No deviceClass — could be either Triton or Puck bootloader, so
       // always show the picker. runBootloaderPicker handles the gating
       // and post-action refresh itself.
       await runBootloaderPicker({});
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      notify({
+        variant: "error",
+        title: "Couldn't connect to bootloader",
+        lines: [e instanceof Error ? e.message : String(e)],
+        durationMs: null,
+      });
     } finally {
       setLoading(false);
     }
-  }, [runBootloaderPicker]);
+  }, [runBootloaderPicker, notify]);
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-gray-100">
@@ -501,8 +531,6 @@ export function App() {
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-valve-blue/30 to-transparent" />
       </header>
-
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <main className="flex-1 p-6">
         <PickerProvider value={{ runBootloaderPicker }}>

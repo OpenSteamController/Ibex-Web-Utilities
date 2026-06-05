@@ -16,7 +16,8 @@ import {
 import { Modal } from "./Modal";
 import { FlashIcon, SpinnerIcon, UploadIcon } from "./Icons";
 import { useFlashAttempt } from "../hooks/useFlashAttempt";
-import { FlashProgressView, WarningPanel, SuccessPanel } from "./WizardPanels";
+import { FlashProgressView, WarningPanel } from "./WizardPanels";
+import { useNotifications } from "../notifications-context";
 import styles from "./FlashWizard.module.sass";
 
 type WizardStep =
@@ -25,7 +26,6 @@ type WizardStep =
   | "file_select"
   | "confirm"
   | "flashing"
-  | "complete"
   | "error";
 
 export type FlashWizardMode = "catalog" | "file";
@@ -56,6 +56,7 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   const flashAttempted = useRef(false);
   const { status: flashStatus, runFlash, resetStatus } = useFlashAttempt();
+  const { notify } = useNotifications();
 
   const reset = useCallback(() => {
     setStep("disclaimer");
@@ -123,7 +124,15 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
     const outcome = await runFlash(device.port, firmware);
 
     if (outcome.ok) {
-      setStep("complete");
+      // No blocking success dialog — pop a non-blocking notification card and
+      // close the wizard so rapid reflashing needs no clicks. handleClose fires
+      // onFlashComplete (flashAttempted is set) to refresh the device list.
+      notify({
+        variant: "success",
+        title: "Firmware flashed successfully",
+        lines: ["Your device will restart momentarily."],
+      });
+      handleClose();
       return;
     }
 
@@ -132,9 +141,7 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
       : `${outcome.error.message}\n\nThe controller will reboot into bootloader mode automatically. Please reconnect and try again.`;
     setFlashError(message);
     setStep("error");
-  }, [firmware, device.port, onFlashingChange, runFlash]);
-
-  const handleDone = handleClose;
+  }, [firmware, device.port, onFlashingChange, runFlash, notify, handleClose]);
 
   const stepTitle: Record<WizardStep, string> = {
     disclaimer: "Flash Firmware",
@@ -142,7 +149,6 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
     file_select: "Select Firmware File",
     confirm: "Confirm Flash",
     flashing: "Flashing Firmware",
-    complete: "Flash Complete",
     error: "Flash Error",
   };
 
@@ -357,12 +363,6 @@ export function FlashWizard({ device, firmwareCatalog, mode, isOpen, onClose, on
         ); })()}
 
       {step === "flashing" && <FlashProgressView status={flashStatus} />}
-
-      {step === "complete" && (
-        <SuccessPanel title="Firmware flashed successfully!" onDone={handleDone}>
-          Your device will restart momentarily.
-        </SuccessPanel>
-      )}
 
       {step === "error" && (
         <>
